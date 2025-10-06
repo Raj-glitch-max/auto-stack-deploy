@@ -3,9 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Plus, Activity, CheckCircle2, XCircle, Clock, ExternalLink, LogOut } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Mock project data
 const projects = [
@@ -71,39 +70,17 @@ const getStatusBadge = (status: string) => {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const [userEmail, setUserEmail] = useState<string>("");
+  const { user, signOut } = useAuth();
 
   useEffect(() => {
-    // Check if user is logged in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        navigate("/login");
-      } else {
-        setUserEmail(session.user.email || "");
-      }
-    });
+    if (!user) {
+      navigate("/login");
+    }
+  }, [user, navigate]);
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) {
-        navigate("/login");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    toast({
-      title: "Signed out",
-      description: "You have been signed out successfully.",
-    });
-    navigate("/");
-  };
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -116,8 +93,8 @@ const Dashboard = () => {
             <span className="bg-gradient-primary bg-clip-text text-transparent">AutoStack</span>
           </Link>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">{userEmail}</span>
-            <Button variant="outline" onClick={handleLogout}>
+            <span className="text-sm text-muted-foreground">{user.email}</span>
+            <Button variant="outline" onClick={signOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
             </Button>
