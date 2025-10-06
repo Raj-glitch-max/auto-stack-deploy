@@ -1,19 +1,61 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Terminal, Github } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Login = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Authentication will be implemented with Lovable Cloud
-    console.log("Login:", { email, password });
+    setLoading(true);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      toast({
+        title: "Login failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Login successful",
+        description: "Welcome back!",
+      });
+      navigate("/dashboard");
+    }
+
+    setLoading(false);
+  };
+
+  const handleGithubLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "github",
+      options: {
+        redirectTo: `${window.location.origin}/dashboard`,
+      },
+    });
+
+    if (error) {
+      toast({
+        title: "Login failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -59,8 +101,12 @@ const Login = () => {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full bg-gradient-primary shadow-glow hover:opacity-90">
-                Sign In
+              <Button 
+                type="submit" 
+                className="w-full bg-gradient-primary shadow-glow hover:opacity-90"
+                disabled={loading}
+              >
+                {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
 
@@ -73,7 +119,12 @@ const Login = () => {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full" type="button">
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              type="button"
+              onClick={handleGithubLogin}
+            >
               <Github className="mr-2 h-5 w-5" />
               GitHub
             </Button>
