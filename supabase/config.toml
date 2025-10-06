@@ -1,1 +1,10 @@
 project_id = "lbfirssdowjoawqxzzqz"
+
+[functions.trigger-jenkins]
+verify_jwt = true
+
+[functions.aws-deploy]
+verify_jwt = true
+
+[functions.github-webhook]
+verify_jwt = false  # Public webhook endpoint - validates via HMAC signature
