@@ -1,14 +1,18 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, CheckCircle2, XCircle, Clock, ExternalLink, LogOut, Loader2, Rocket } from "lucide-react";
+import { Activity, CheckCircle2, XCircle, Clock, ExternalLink, LogOut, Loader2, Rocket, Trash2, Settings } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProjects } from "@/hooks/useProjects";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
+import { EditProjectDialog } from "@/components/EditProjectDialog";
+import { DeploymentHistory } from "@/components/DeploymentHistory";
+import { ActivityFeed } from "@/components/ActivityFeed";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { motion } from "framer-motion";
 
 const getStatusIcon = (status: string) => {
   switch (status) {
@@ -77,6 +81,35 @@ const Dashboard = () => {
     }
   };
 
+  const handleDelete = async (projectId: string, projectName: string) => {
+    if (!confirm(`Are you sure you want to delete "${projectName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Project deleted successfully',
+      });
+
+      refetch();
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete project',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (!user) {
     return null;
   }
@@ -92,6 +125,13 @@ const Dashboard = () => {
             <span className="bg-gradient-primary bg-clip-text text-transparent">AutoStack</span>
           </Link>
           <div className="flex items-center gap-3">
+            <ActivityFeed />
+            <Link to="/settings">
+              <Button variant="outline" size="sm">
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </Button>
+            </Link>
             <span className="text-sm text-muted-foreground">{user.email}</span>
             <Button variant="outline" onClick={signOut}>
               <LogOut className="mr-2 h-4 w-4" />
@@ -129,65 +169,105 @@ const Dashboard = () => {
           </Card>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => (
-              <Card
+            {projects.map((project, index) => (
+              <motion.div
                 key={project.id}
-                className="group border-border transition-all hover:border-primary/50 hover:shadow-elevated"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
               >
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        {project.name}
-                        {getStatusIcon(project.status)}
-                      </CardTitle>
-                      <CardDescription className="mt-1">
-                        {project.aws_service.toUpperCase()} • {project.aws_region}
-                      </CardDescription>
+                <Card className="group h-full border-border bg-card/50 backdrop-blur transition-all hover:border-primary/50 hover:shadow-elevated">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="flex items-center gap-2">
+                          {project.name}
+                          {getStatusIcon(project.status)}
+                        </CardTitle>
+                        <CardDescription className="mt-1">
+                          {project.aws_service.toUpperCase()} • {project.aws_region}
+                        </CardDescription>
+                        {project.ecr_repository && (
+                          <CardDescription className="mt-1 text-xs">
+                            ECR: {project.ecr_repository}
+                          </CardDescription>
+                        )}
+                        {project.ecs_cluster_name && (
+                          <CardDescription className="text-xs">
+                            Cluster: {project.ecs_cluster_name}
+                          </CardDescription>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Badge className={getStatusBadge(project.status)}>{project.status}</Badge>
+                        <Badge variant="outline" className="text-xs">
+                          Simulated
+                        </Badge>
+                      </div>
                     </div>
-                    <Badge className={getStatusBadge(project.status)}>{project.status}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {project.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {project.description}
-                      </p>
-                    )}
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Health</span>
-                      <span className={`font-medium ${
-                        project.health_status === 'healthy' ? 'text-success' :
-                        project.health_status === 'unhealthy' ? 'text-destructive' :
-                        'text-muted-foreground'
-                      }`}>
-                        {project.health_status}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => handleDeploy(project.id)}
-                        disabled={project.status === 'deploying'}
-                      >
-                        <Rocket className="mr-2 h-4 w-4" />
-                        Deploy
-                      </Button>
-                      {project.deployment_url && (
-                        <Button variant="outline" size="sm" className="flex-1" asChild>
-                          <a href={project.deployment_url} target="_blank" rel="noopener noreferrer">
-                            View Live
-                            <ExternalLink className="ml-2 h-4 w-4" />
-                          </a>
-                        </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {project.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {project.description}
+                        </p>
                       )}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Health</span>
+                        <span
+                          className={`font-medium ${
+                            project.health_status === 'healthy'
+                              ? 'text-success'
+                              : project.health_status === 'unhealthy'
+                              ? 'text-destructive'
+                              : 'text-muted-foreground'
+                          }`}
+                        >
+                          {project.health_status}
+                        </span>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleDeploy(project.id)}
+                          disabled={project.status === 'deploying'}
+                          className="flex-1"
+                        >
+                          <Rocket className="mr-2 h-4 w-4" />
+                          Deploy
+                        </Button>
+                        {project.deployment_url && (
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={project.deployment_url} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <DeploymentHistory projectId={project.id} />
+                        <ActivityFeed projectId={project.id} />
+                      </div>
+
+                      <div className="flex gap-2 border-t pt-3">
+                        <EditProjectDialog project={project} onProjectUpdated={refetch} />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(project.id, project.name)}
+                          className="text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </motion.div>
             ))}
           </div>
         )}

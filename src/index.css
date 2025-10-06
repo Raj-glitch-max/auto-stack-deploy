@@ -38,6 +38,9 @@ All colors MUST be HSL.
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 98%;
 
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 98%;
+
     --border: 240 6% 16%;
     --input: 240 6% 16%;
     --ring: 265 89% 65%;
