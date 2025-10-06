@@ -14,6 +14,100 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_logs: {
+        Row: {
+          created_at: string
+          id: string
+          level: string | null
+          message: string
+          metadata: Json | null
+          project_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level?: string | null
+          message: string
+          metadata?: Json | null
+          project_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: string | null
+          message?: string
+          metadata?: Json | null
+          project_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deployments: {
+        Row: {
+          build_number: number | null
+          commit_message: string | null
+          commit_sha: string | null
+          completed_at: string | null
+          created_at: string
+          docker_image_tag: string | null
+          error_message: string | null
+          id: string
+          jenkins_build_url: string | null
+          logs: string | null
+          project_id: string
+          started_at: string
+          status: string | null
+        }
+        Insert: {
+          build_number?: number | null
+          commit_message?: string | null
+          commit_sha?: string | null
+          completed_at?: string | null
+          created_at?: string
+          docker_image_tag?: string | null
+          error_message?: string | null
+          id?: string
+          jenkins_build_url?: string | null
+          logs?: string | null
+          project_id: string
+          started_at?: string
+          status?: string | null
+        }
+        Update: {
+          build_number?: number | null
+          commit_message?: string | null
+          commit_sha?: string | null
+          completed_at?: string | null
+          created_at?: string
+          docker_image_tag?: string | null
+          error_message?: string | null
+          id?: string
+          jenkins_build_url?: string | null
+          logs?: string | null
+          project_id?: string
+          started_at?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deployments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -38,15 +132,102 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          aws_region: string | null
+          aws_service: string | null
+          created_at: string
+          deployment_url: string | null
+          description: string | null
+          ecr_repository: string | null
+          ecs_cluster_name: string | null
+          ecs_service_name: string | null
+          health_status: string | null
+          id: string
+          jenkins_job_name: string | null
+          name: string
+          repo_branch: string | null
+          repo_url: string | null
+          status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          aws_region?: string | null
+          aws_service?: string | null
+          created_at?: string
+          deployment_url?: string | null
+          description?: string | null
+          ecr_repository?: string | null
+          ecs_cluster_name?: string | null
+          ecs_service_name?: string | null
+          health_status?: string | null
+          id?: string
+          jenkins_job_name?: string | null
+          name: string
+          repo_branch?: string | null
+          repo_url?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          aws_region?: string | null
+          aws_service?: string | null
+          created_at?: string
+          deployment_url?: string | null
+          description?: string | null
+          ecr_repository?: string | null
+          ecs_cluster_name?: string | null
+          ecs_service_name?: string | null
+          health_status?: string | null
+          id?: string
+          jenkins_job_name?: string | null
+          name?: string
+          repo_branch?: string | null
+          repo_url?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "user" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -173,6 +354,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["user", "admin"],
+    },
   },
 } as const
