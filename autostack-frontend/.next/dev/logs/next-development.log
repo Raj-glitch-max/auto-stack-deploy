@@ -1,0 +1,17 @@
+[00:00:00.582] Server  LOG      ✓ Ready in 380ms
+[00:00:02.750] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:31.232] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:07:26.513] Server  LOG      ✓ Compiled in 35ms
+[00:20:45.968] Server  LOG      ✓ Compiled in 12ms
+[00:25:16.077] Server  ERROR    ⨯ ReferenceError: TransitionWrapper is not defined
+[00:25:16.084] Server  LOG      ✓ Compiled in 191ms
+[00:25:16.108] Server  ERROR    ⨯ ReferenceError: TransitionWrapper is not defined
+[00:25:16.208] Server  ERROR    ⨯ ReferenceError: TransitionWrapper is not defined
+[00:25:16.250] Server  ERROR    ⨯ ReferenceError: TransitionWrapper is not defined
+[00:25:16.345] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:25:16.548] Browser ERROR   uncaughtError: ReferenceError: TransitionWrapper is not defined
+[00:27:37.322] Server  WARN     ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:27:37.343] Server  ERROR    ⨯ ReferenceError: TransitionWrapper is not defined
+[00:27:37.362] Server  LOG      ✓ Compiled in 26ms
+[00:27:37.444] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:27:38.546] Browser ERROR   uncaughtError: ReferenceError: TransitionWrapper is not defined

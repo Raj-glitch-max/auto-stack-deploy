@@ -1,0 +1,31 @@
+@import 'tailwindcss';
+
+:root {
+  --bg: #000;
+  --text: #fff;
+  --text-secondary: #a1a1aa;
+  --accent: #a855f7;
+  --accent-2: #ec4899;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+}
+
+a, button {
+  transition: all 0.3s ease;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.8s ease-out;
+}
+
+.reveal.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+

@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* ----------- COLOR & THEME BASE ----------- */
+:root {
+  --color-bg: #0d0d0f;
+  --color-surface: #141416;
+  --color-surface-light: #1a1a1d;
+  --color-accent: #00f6c7;
+  --color-accent-soft: rgba(0, 246, 199, 0.1);
+  --color-accent-glow: 0 0 25px rgba(0, 246, 199, 0.4);
+  --color-success: #10ffb8;
+  --color-error: #ff4d6d;
+  --color-warning: #ffb84d;
+  --color-text: #f6f6f6;
+  --color-text-secondary: #a0a0a5;
+  --radius: 0.75rem;
+  --transition: all 0.3s ease;
+}
+
+body {
+  background: radial-gradient(circle at top left, #0e0e10 0%, #090909 100%);
+  color: var(--color-text);
+  font-family: 'Geist', sans-serif;
+  transition: var(--transition);
+}
+
+.dark body {
+  background: radial-gradient(circle at top right, #050505 0%, #0a0a0a 100%);
+}
+
+/* Glass effect surfaces */
+.glass {
+  background: linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.07);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  backdrop-filter: blur(10px);
+}
+
+/* Neon glow for accents */
+.glow {
+  box-shadow: var(--color-accent-glow);
+}
+
+/* Smooth transitions for all elements */
+.transition-smooth {
+  transition: var(--transition);
+}
+
+/* Accent utilities */
+.text-accent {
+  color: var(--color-accent) !important;
+}
+.bg-accent {
+  background-color: var(--color-accent) !important;
+}
+.text-success { color: var(--color-success) !important; }
+.text-error { color: var(--color-error) !important; }
+.text-warning { color: var(--color-warning) !important; }
+.text-text { color: var(--color-text) !important; }
+.text-text-secondary { color: var(--color-text-secondary) !important; }
+
+/* Buttons */
+button, .btn {
+  cursor: pointer;
+  transition: var(--transition);
+}
+button:hover, .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 246, 199, 0.25);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.3);
+}
+
