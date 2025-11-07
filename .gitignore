@@ -1,0 +1,185 @@
+# =========================
+# 🔥 GLOBAL SETTINGS
+# =========================
+# OS / Editor Junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+*.tmp
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+*.log
+logs/
+log/
+nohup.out
+
+# =========================
+# 🐍 PYTHON BACKEND (FastAPI)
+# =========================
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Pytest / Coverage / Mypy
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.pytest_cache/
+.dmypy.json
+
+# SQLite (local dev only)
+*.db
+*.sqlite3
+
+# Alembic migrations cache
+alembic/versions/*.pyc
+alembic/__pycache__/
+alembic/versions/__pycache__/
+
+# =========================
+# ⚙️ ENVIRONMENT & CONFIG
+# =========================
+.env
+.env.*
+!.env.example
+*.secret
+secrets.json
+config.json
+config.yaml
+*.pem
+*.key
+*.crt
+
+# Terraform state / cache
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+crash.log
+override.tf
+override.tf.json
+.terraform.lock.hcl
+
+# =========================
+# 🐳 DOCKER / CONTAINERS
+# =========================
+*.pid
+*.tar
+*.log
+*.lock
+docker-compose.override.yml
+.env.docker
+
+# Docker build cache
+**/.dockerignore
+**/Dockerfile~
+**/Dockerfile.backup
+**/tmp_docker/
+
+# =========================
+# 🌍 FRONTEND (Next.js / React)
+# =========================
+# Node modules / build output
+node_modules/
+.next/
+out/
+dist/
+build/
+.cache/
+.npm/
+.yarn/
+.yarn-cache/
+.pnpm-store/
+package-lock.json
+yarn-error.log
+
+# Env files
+frontend/.env.local
+frontend/.env.development
+frontend/.env.production
+frontend/.env.test
+frontend/.env.*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# 🧱 INFRASTRUCTURE
+# =========================
+# Jenkins
+jenkins_home/
+jenkins.log
+Jenkinsfile.backup
+**/jobs/
+**/workspace/
+
+# AWS / Terraform artifacts
+*.tfplan
+*.terraformrc
+terraform.tfvars
+terraform.tfstate.d/
+
+# AWS credentials / configs
+.aws/
+.aws/credentials
+.aws/config
+
+# =========================
+# 📊 MONITORING (Prometheus / Grafana)
+# =========================
+prometheus/data/
+grafana/data/
+grafana/plugins/
+grafana/provisioning/dashboards/*.tmp
+grafana/provisioning/datasources/*.tmp
+
+# =========================
+# 🧠 PYTHON AGENT
+# =========================
+agent/__pycache__/
+agent/tmp/
+agent/logs/
+agent/.env
+agent/*.pid
+
+# =========================
+# 🧩 MISC
+# =========================
+# Backup / temp files
+*.bak
+*.tmp
+*.orig
+*.rej
+*.patch
+*.un~
+
+# Test artifacts
+test-results/
+reports/
+*.spec
+*.pytest_cache
+
+# =========================
+# ✅ ALLOW THESE EXAMPLES
+# =========================
+!.env.example
+!docker-compose.yml
+!Dockerfile
+!Makefile
+!*.tf
+!*.tfvars.example
+!Jenkinsfile
+!README.md
+
