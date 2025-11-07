@@ -183,3 +183,4 @@ reports/
 !Jenkinsfile
 !README.md
 
+node_modules/
