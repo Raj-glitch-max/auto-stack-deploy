@@ -1,12 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Navbar } from "@/components/navbar"
 import { GitHubConnect } from "@/components/GitHubConnect"
 import { RepoSelector } from "@/components/RepoSelector"
 import { DeployButton } from "@/components/DeployButton"
 import { DeploymentList } from "@/components/DeploymentList"
+
+// Note: Authentication is optional for now - you can view the page without login
+// GitHub connection is required for actual deployment
 
 interface Repo {
   id: number

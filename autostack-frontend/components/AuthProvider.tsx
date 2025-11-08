@@ -10,10 +10,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function loadMe() {
-    // Don't try to load user on login/signup pages to avoid redirect loop
+    // Don't try to load user on public pages to avoid redirect loop
     if (typeof window !== 'undefined') {
       const currentPath = window.location.pathname;
-      if (currentPath === '/login' || currentPath === '/signup') {
+      const publicPaths = ['/login', '/signup', '/', '/docs', '/pricing', '/how-it-works', '/deploy'];
+      if (publicPaths.includes(currentPath)) {
         setLoading(false);
         setUser(null);
         return;

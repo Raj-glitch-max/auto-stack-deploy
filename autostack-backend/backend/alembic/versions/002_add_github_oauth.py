@@ -1,7 +1,7 @@
 """add github oauth fields
 
 Revision ID: 002_github_oauth
-Revises: 001_initial_migration
+Revises: 001_initial
 Create Date: 2025-11-08 21:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '002_github_oauth'
-down_revision = '001_initial_migration'
+down_revision = '001_initial'
 branch_labels = None
 depends_on = None
 
