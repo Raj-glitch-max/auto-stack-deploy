@@ -23,8 +23,8 @@ export default function LoginPage() {
       localStorage.removeItem("access_token")
       localStorage.removeItem("refresh_token")
     }
-    (globalThis as any)._AS_ACCESS_TOKEN = null
-    (globalThis as any)._AS_REFRESH_TOKEN = null
+    ;(globalThis as any)._AS_ACCESS_TOKEN = null
+    ;(globalThis as any)._AS_REFRESH_TOKEN = null
     
     try {
       console.log("Attempting login with:", form.email)
@@ -45,14 +45,12 @@ export default function LoginPage() {
         localStorage.setItem("access_token", accessToken)
         localStorage.setItem("refresh_token", refreshToken)
       }
-      (globalThis as any)._AS_ACCESS_TOKEN = accessToken
-      (globalThis as any)._AS_REFRESH_TOKEN = refreshToken
+      ;(globalThis as any)._AS_ACCESS_TOKEN = accessToken
+      ;(globalThis as any)._AS_REFRESH_TOKEN = refreshToken
       
       setMessage("Login successful! Redirecting...")
       setTimeout(() => {
-        if (typeof window !== 'undefined') {
-          window.location.href = "/dashboard"
-        }
+        router.push("/dashboard")
       }, 1000)
     } catch (err: any) {
       console.error("Login error:", err)

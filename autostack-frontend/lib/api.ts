@@ -35,15 +35,15 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
+  async (err) => {
     const originalReq = err.config;
     
     // Skip refresh for login and signup endpoints
-    const isAuthEndpoint = originalReq.url?.includes('/login') || 
-                          originalReq.url?.includes('/signup') ||
-                          originalReq.url?.includes('/refresh');
+    const isAuthEndpoint = originalReq?.url?.includes('/login') || 
+                          originalReq?.url?.includes('/signup') ||
+                          originalReq?.url?.includes('/refresh');
     
-    if (err.response && err.response.status === 401 && !originalReq._retry && !isAuthEndpoint) {
+    if (err.response && err.response.status === 401 && !originalReq?._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         return new Promise(function (resolve, reject) {
           failedQueue.push({ resolve, reject });

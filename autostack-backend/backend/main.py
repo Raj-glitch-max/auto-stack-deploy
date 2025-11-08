@@ -55,12 +55,13 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://frontend:3000",
-        "http://localhost:8000"
+        "http://localhost:8000",
+        "http://127.0.0.1:8000"
     ],
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     allow_credentials=True,
+    expose_headers=["*"],
 )
 app.add_middleware(RateLimitMiddleware, calls=50, period=60.0)
 app.add_middleware(ErrorHandlingMiddleware)

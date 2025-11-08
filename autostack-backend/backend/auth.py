@@ -207,8 +207,8 @@ async def refresh_token(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
             )
         
-        # Create new access token and return BOTH tokens
-        access_token = create_access_token(user.email)
+        # Create new access token and return BOTH tokens (use user.id for consistency with login)
+        access_token = create_access_token(str(user.id))
         
         # Return the same refresh token (it's still valid)
         return schemas.TokenResponse(
@@ -355,8 +355,8 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
         user.github_username = github_user.get("login")
         await db.commit()
         
-        # Create JWT tokens
-        access_token = create_access_token(user.email)
+        # Create JWT tokens (use user.id for consistency)
+        access_token = create_access_token(str(user.id))
         
         # Create refresh token
         refresh_token = create_refresh_token()

@@ -35,11 +35,14 @@ export default function DashboardPage() {
   })
 
   useEffect(() => {
-    // Redirect to login if not authenticated
-    if (!loading && !user) {
-      router.push("/login")
+    // Check for token instead of user (since AuthProvider is disabled)
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem("access_token")
+      if (!token) {
+        router.push("/login")
+      }
     }
-  }, [loading, user, router])
+  }, [router])
 
   useEffect(() => {
     // Only fetch if we're in browser and have token
@@ -47,11 +50,10 @@ export default function DashboardPage() {
     const token = localStorage.getItem("access_token")
     if (!token) return
     
-    if (user) {
-      fetchDeployments()
-      fetchMetrics()
-    }
-  }, [user])
+    // Fetch data if we have a token
+    fetchDeployments()
+    fetchMetrics()
+  }, [])
 
   const fetchDeployments = async () => {
     try {
@@ -94,14 +96,12 @@ export default function DashboardPage() {
     }
   }
 
-  if (loading || isLoading)
+  if (isLoading)
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-400">
         Loading dashboard...
       </div>
     )
-
-  if (!user) return null
 
   return (
     <>
