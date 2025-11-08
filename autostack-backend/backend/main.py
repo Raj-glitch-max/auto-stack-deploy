@@ -21,6 +21,7 @@ from . import crud, models
 from .auth import get_current_user, router as auth_router
 from .db import AsyncSessionLocal, get_db
 from .middleware import ErrorHandlingMiddleware, RateLimitMiddleware
+from .deploy_engine import DeployEngine
 from .schemas import (
     AgentHeartbeat,
     AgentRegister,
@@ -65,6 +66,9 @@ app.add_middleware(ErrorHandlingMiddleware)
 # Mount Auth router
 app.include_router(auth_router, prefix="", tags=["auth"])
 
+# Initialize Deploy Engine
+deploy_engine = DeployEngine()
+
 # ========================
 # Health Check
 # ========================
@@ -97,7 +101,14 @@ async def deploy_endpoint(
         branch=payload.branch,
         environment=payload.environment,
     )
-    background_tasks.add_task(simulate_deploy_db, str(deploy.id))
+    # Start deployment in background
+    background_tasks.add_task(
+        run_deployment,
+        str(deploy.id),
+        payload.repo,
+        payload.branch,
+        current_user.github_token
+    )
     
     # Audit log
     await crud.create_audit_log(
@@ -111,24 +122,57 @@ async def deploy_endpoint(
         user_agent=request.headers.get("user-agent"),
     )
     
-    return {"deploy_id": str(deploy.id)}
+    return {"deploy_id": str(deploy.id), "status": "queued"}
 
 
-async def simulate_deploy_db(deploy_id: str):
+async def run_deployment(deploy_id: str, repo: str, branch: str, github_token: str = None):
+    """Background task to run actual deployment using deploy engine"""
     async with AsyncSessionLocal() as session:
         deploy = await crud.get_deploy(session, deploy_id)
         if not deploy:
             return
 
-        await crud.append_log(session, deploy, "[1] Cloning repository...")
-        await asyncio.sleep(2)
-        await crud.append_log(session, deploy, "[2] Building Docker image...")
-        await asyncio.sleep(3)
-        await crud.append_log(session, deploy, "[3] Starting container...")
-        await asyncio.sleep(2)
-        await crud.append_log(session, deploy, "[4] Deployment succeeded ✅")
-        deploy.status = "success"
-        await session.commit()
+        try:
+            # Update status to running
+            deploy.status = "running"
+            await session.commit()
+            
+            # Log: Starting deployment
+            await crud.append_log(session, deploy, f"🚀 Starting deployment of {repo} ({branch})...")
+            await crud.append_log(session, deploy, "📦 Cloning repository...")
+            
+            # Run deployment
+            success, deploy_info, error = await deploy_engine.deploy_from_github(
+                repo_url=repo,
+                branch=branch,
+                deploy_id=deploy_id
+            )
+            
+            if success:
+                # Update deployment with success info
+                deploy.status = "success"
+                deploy.port = deploy_info.get("port")
+                deploy.container_id = deploy_info.get("container_id")
+                deploy.url = deploy_info.get("url")
+                
+                await crud.append_log(session, deploy, f"✅ Deployment successful!")
+                await crud.append_log(session, deploy, f"🌐 URL: {deploy_info.get('url')}")
+                await crud.append_log(session, deploy, f"🐳 Container: {deploy_info.get('container_name')}")
+                await crud.append_log(session, deploy, f"📊 Project Type: {deploy_info.get('project_type')}")
+            else:
+                # Update deployment with failure info
+                deploy.status = "failed"
+                deploy.error_message = error
+                await crud.append_log(session, deploy, f"❌ Deployment failed: {error}")
+            
+            await session.commit()
+            
+        except Exception as e:
+            # Handle unexpected errors
+            deploy.status = "failed"
+            deploy.error_message = str(e)
+            await crud.append_log(session, deploy, f"❌ Unexpected error: {str(e)}")
+            await session.commit()
 
 @app.get("/deployments")
 async def list_deploys(
@@ -150,6 +194,58 @@ async def list_deploys(
             for d in deploys
         ]
     }
+
+@app.get("/github/repos")
+async def list_github_repos(
+    current_user: models.User = Depends(get_current_user)
+):
+    """List user's GitHub repositories"""
+    if not current_user.github_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="GitHub account not connected. Please connect your GitHub account first."
+        )
+    
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://api.github.com/user/repos",
+                headers={
+                    "Authorization": f"Bearer {current_user.github_token}",
+                    "Accept": "application/json"
+                },
+                params={"per_page": 100, "sort": "updated"}
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to fetch GitHub repositories"
+                )
+            
+            repos = response.json()
+            return {
+                "repos": [
+                    {
+                        "id": repo["id"],
+                        "name": repo["name"],
+                        "full_name": repo["full_name"],
+                        "clone_url": repo["clone_url"],
+                        "default_branch": repo["default_branch"],
+                        "description": repo["description"],
+                        "private": repo["private"],
+                        "updated_at": repo["updated_at"]
+                    }
+                    for repo in repos
+                ]
+            }
+    except httpx.HTTPError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"GitHub API error: {str(e)}"
+        )
+
 
 @app.get("/status/{deploy_id}")
 async def get_deploy_status(
