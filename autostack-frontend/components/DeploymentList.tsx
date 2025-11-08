@@ -17,12 +17,20 @@ interface Deployment {
 
 export function DeploymentList({ refreshTrigger }: { refreshTrigger?: number }) {
   const [deployments, setDeployments] = useState<Deployment[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [selectedDeploy, setSelectedDeploy] = useState<string | null>(null)
+  const [hasFetched, setHasFetched] = useState(false)
 
+  // Don't fetch automatically - only when user has token
   useEffect(() => {
-    fetchDeployments()
-  }, [refreshTrigger])
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem("access_token")
+      if (token && !hasFetched) {
+        fetchDeployments()
+        setHasFetched(true)
+      }
+    }
+  }, [refreshTrigger, hasFetched])
 
   const fetchDeployments = async () => {
     try {
