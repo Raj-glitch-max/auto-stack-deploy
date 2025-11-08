@@ -67,14 +67,8 @@ api.interceptors.response.use(
           }
           
           if (!refreshToken) {
-            // No refresh token, redirect to login (but not if on public pages)
-            if (typeof window !== 'undefined') {
-              const currentPath = window.location.pathname;
-              const publicPaths = ['/login', '/signup', '/', '/docs', '/pricing', '/how-it-works', '/deploy'];
-              if (!publicPaths.includes(currentPath)) {
-                window.location.href = "/login";
-              }
-            }
+            // No refresh token - just reject, don't redirect
+            // Let components handle the error
             processQueue(new Error("No refresh token"), null);
             reject(new Error("No refresh token"));
             return;
@@ -93,21 +87,17 @@ api.interceptors.response.use(
           originalReq.headers["Authorization"] = "Bearer " + accessToken;
           resolve(api(originalReq));
         } catch (e) {
-          // Refresh failed, clear tokens and redirect to login (but not if on public pages)
+          // Refresh failed, clear tokens but don't redirect
+          // Let components handle the error
           (globalThis as any)._AS_ACCESS_TOKEN = null;
           (globalThis as any)._AS_REFRESH_TOKEN = null;
           if (typeof window !== 'undefined') {
             localStorage.removeItem("access_token");
             localStorage.removeItem("refresh_token");
-            const currentPath = window.location.pathname;
-            const publicPaths = ['/login', '/signup', '/', '/docs', '/pricing', '/how-it-works', '/deploy'];
-            if (!publicPaths.includes(currentPath)) {
-              window.location.href = "/login";
-            }
           }
           processQueue(e, null);
           reject(e);
-        } finally {
+        } finally{
           isRefreshing = false;
         }
       });
