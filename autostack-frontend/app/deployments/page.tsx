@@ -20,6 +20,11 @@ export default function DeploymentsPage() {
 
   useEffect(() => {
     async function fetchDeployments() {
+      // Only fetch if user has token
+      if (typeof window === 'undefined') return
+      const token = localStorage.getItem("access_token")
+      if (!token) return
+      
       try {
         const res = await api.get("/deployments")
         setDeployments(res.data.deployments || [])

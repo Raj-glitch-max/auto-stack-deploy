@@ -42,6 +42,11 @@ export default function DashboardPage() {
   }, [loading, user, router])
 
   useEffect(() => {
+    // Only fetch if we're in browser and have token
+    if (typeof window === 'undefined') return
+    const token = localStorage.getItem("access_token")
+    if (!token) return
+    
     if (user) {
       fetchDeployments()
       fetchMetrics()
