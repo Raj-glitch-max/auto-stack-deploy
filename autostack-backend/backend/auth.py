@@ -320,7 +320,7 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
             # Create new user with GitHub OAuth
             user = models.User(
                 email=email,
-                hashed_password=hash_password(secrets.token_urlsafe(32))  # Random password
+                password_hash=hash_password(secrets.token_urlsafe(32))  # Random password
             )
             db.add(user)
             await db.commit()
