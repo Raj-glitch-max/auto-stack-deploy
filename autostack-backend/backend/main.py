@@ -50,12 +50,13 @@ app = FastAPI(
 # Middleware (order matters - error handling should be last)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://frontend:3000"],
+    allow_origins=["http://localhost:3000", "http://frontend:3000", "http://localhost:8000"],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
 )
-app.add_middleware(RateLimitMiddleware, calls=5, period=60.0)
+app.add_middleware(RateLimitMiddleware, calls=50, period=60.0)
 app.add_middleware(ErrorHandlingMiddleware)
 
 # Note: Database tables are managed by Alembic migrations

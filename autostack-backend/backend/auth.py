@@ -149,7 +149,9 @@ async def login(payload: schemas.UserLogin, db: AsyncSession = Depends(get_db)):
     refresh_token = create_refresh_token()
     refresh_token_hash = hash_token(refresh_token)
     expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    await crud.create_refresh_token(db, user=user, token_hash=refresh_token_hash, expires_at=expires_at)
+    # Convert to naive datetime for database compatibility
+    expires_at_naive = expires_at.replace(tzinfo=None)
+    await crud.create_refresh_token(db, user=user, token_hash=refresh_token_hash, expires_at=expires_at_naive)
     
     # Create audit log
     await crud.create_audit_log(db, user=user, action="login", resource_type="auth")

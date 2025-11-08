@@ -10,6 +10,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function loadMe() {
+    // Don't try to load user on login/signup pages to avoid redirect loop
+    if (typeof window !== 'undefined') {
+      const currentPath = window.location.pathname;
+      if (currentPath === '/login' || currentPath === '/signup') {
+        setLoading(false);
+        setUser(null);
+        return;
+      }
+    }
+    
     try {
       // Try to get token from localStorage first
       if (typeof window !== 'undefined') {

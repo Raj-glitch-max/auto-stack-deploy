@@ -1,6 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
+import { Navbar } from "@/components/navbar"
 
 const docsSections = [
   {
@@ -23,7 +24,9 @@ const docsSections = [
 
 export default function DocsPage() {
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col md:flex-row max-w-7xl mx-auto px-6 pt-10 gap-10">
+    <>
+      <Navbar />
+      <div className="min-h-screen bg-black text-white flex flex-col md:flex-row max-w-7xl mx-auto px-6 pt-10 gap-10">
       {/* Sidebar */}
       <motion.aside
         initial={{ x: -40, opacity: 0 }}
@@ -56,6 +59,6 @@ export default function DocsPage() {
         ))}
       </motion.main>
     </div>
+    </>
   )
 }
-

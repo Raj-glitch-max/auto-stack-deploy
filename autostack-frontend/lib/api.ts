@@ -4,6 +4,7 @@ import axios from "axios";
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
   withCredentials: true, // send cookies (refresh token cookie)
+  timeout: 10000, // 10 second timeout
 });
 
 let isRefreshing = false;
@@ -36,7 +37,13 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     const originalReq = err.config;
-    if (err.response && err.response.status === 401 && !originalReq._retry) {
+    
+    // Skip refresh for login and signup endpoints
+    const isAuthEndpoint = originalReq.url?.includes('/login') || 
+                          originalReq.url?.includes('/signup') ||
+                          originalReq.url?.includes('/refresh');
+    
+    if (err.response && err.response.status === 401 && !originalReq._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         return new Promise(function (resolve, reject) {
           failedQueue.push({ resolve, reject });
@@ -60,9 +67,12 @@ api.interceptors.response.use(
           }
           
           if (!refreshToken) {
-            // No refresh token, redirect to login
+            // No refresh token, redirect to login (but not if already on login/signup)
             if (typeof window !== 'undefined') {
-              window.location.href = "/login";
+              const currentPath = window.location.pathname;
+              if (currentPath !== '/login' && currentPath !== '/signup') {
+                window.location.href = "/login";
+              }
             }
             processQueue(new Error("No refresh token"), null);
             reject(new Error("No refresh token"));
@@ -82,13 +92,16 @@ api.interceptors.response.use(
           originalReq.headers["Authorization"] = "Bearer " + accessToken;
           resolve(api(originalReq));
         } catch (e) {
-          // Refresh failed, clear tokens and redirect to login
+          // Refresh failed, clear tokens and redirect to login (but not if already on login/signup)
           (globalThis as any)._AS_ACCESS_TOKEN = null;
           (globalThis as any)._AS_REFRESH_TOKEN = null;
           if (typeof window !== 'undefined') {
             localStorage.removeItem("access_token");
             localStorage.removeItem("refresh_token");
-            window.location.href = "/login";
+            const currentPath = window.location.pathname;
+            if (currentPath !== '/login' && currentPath !== '/signup') {
+              window.location.href = "/login";
+            }
           }
           processQueue(e, null);
           reject(e);

@@ -1,6 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
+import { Navbar } from "@/components/navbar"
 
 const plans = [
   {
@@ -22,7 +23,9 @@ const plans = [
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center px-6 pt-16">
+    <>
+      <Navbar />
+      <div className="min-h-screen bg-black text-white flex flex-col items-center px-6 pt-16">
       <h1 className="text-4xl font-bold mb-4">Pricing</h1>
       <p className="text-gray-400 mb-12 text-center max-w-xl">
         Choose a plan that grows with your infrastructure needs. No hidden fees, cancel anytime.
@@ -50,7 +53,8 @@ export default function PricingPage() {
           </motion.div>
         ))}
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 

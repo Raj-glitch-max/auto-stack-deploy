@@ -46,7 +46,7 @@ export default function AlertsPage() {
     }
   }
 
-  const handleDismiss = async (id: string) => {
+  const handleDismiss = async (id: string | number) => {
     try {
       await api.patch(`/alerts/${id}`, { resolved: true })
       await fetchAlerts()

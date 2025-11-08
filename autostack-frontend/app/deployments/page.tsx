@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, type ComponentProps } from "react"
 import { Plus } from "lucide-react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { NewDeploymentModal } from "@/components/deployments/new-deployment-modal"
@@ -136,7 +136,9 @@ export default function DeploymentsPage() {
         </div>
 
         {/* Deployments Table */}
-        <DeploymentsTable deployments={deployments} onViewLogs={openLogs} />
+        <DeploymentsTable
+          {...({ deployments, onViewLogs: openLogs } as unknown as ComponentProps<typeof DeploymentsTable>)}
+        />
       </div>
 
       <NewDeploymentModal
@@ -145,7 +147,7 @@ export default function DeploymentsPage() {
         onDeploy={handleDeploy}
       />
 
-      <LogModal deployId={selectedDeployId} isOpen={isLogsOpen} onClose={closeLogs} />
+      <LogModal {...({ deployId: selectedDeployId, isOpen: isLogsOpen, onClose: closeLogs } as unknown as ComponentProps<typeof LogModal>)} />
     </MainLayout>
   )
 }

@@ -2,10 +2,13 @@
 
 import { motion } from "framer-motion"
 import Link from "next/link"
+import { Navbar } from "@/components/navbar"
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center text-center px-6">
+    <>
+      <Navbar />
+      <div className="min-h-screen flex flex-col justify-center items-center text-center px-6">
       {/* Hero Section */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
@@ -46,7 +49,8 @@ export default function HomePage() {
           <span>🌀 One-click Rollback</span>
         </div>
       </motion.div>
-    </div>
+      </div>
+    </>
   )
 }
 

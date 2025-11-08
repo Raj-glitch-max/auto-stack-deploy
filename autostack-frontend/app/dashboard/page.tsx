@@ -8,6 +8,7 @@ import { motion } from "framer-motion"
 import api from "@/lib/api"
 import { useAuth } from "@/components/AuthProvider"
 import { LogModal } from "@/components/deployments/log-modal"
+import { Navbar } from "@/components/navbar"
 
 interface Deployment {
   id: string
@@ -98,8 +99,10 @@ export default function DashboardPage() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-black text-white px-6 pt-10">
-      <div className="max-w-6xl mx-auto">
+    <>
+      <Navbar />
+      <div className="min-h-screen bg-black text-white px-6 pt-10">
+        <div className="max-w-6xl mx-auto">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -205,7 +208,8 @@ export default function DashboardPage() {
         repo={logModal.repo}
         status={logModal.status}
       />
-    </div>
+      </div>
+    </>
   )
 }
 
