@@ -16,6 +16,10 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # GitHub OAuth fields
+    github_token = Column(String, nullable=True)
+    github_username = Column(String, nullable=True)
 
     deployments = relationship("Deploy", back_populates="user", cascade="all, delete-orphan")
     agents = relationship("Agent", back_populates="user", cascade="all, delete-orphan")
@@ -36,6 +40,12 @@ class Deploy(Base):
     logs = Column(Text, default="", nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
+    # Deploy engine fields
+    port = Column(Integer, nullable=True)
+    container_id = Column(String, nullable=True)
+    url = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
 
     user = relationship("User", back_populates="deployments")
 

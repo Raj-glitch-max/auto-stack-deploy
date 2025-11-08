@@ -6,8 +6,10 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+import httpx
 from passlib.context import CryptContext
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -200,6 +202,160 @@ async def refresh_token(
     
     access_token = create_access_token(str(user.id))
     return schemas.TokenResponse(access_token=access_token)
+
+
+# ========================
+# GitHub OAuth
+# ========================
+
+
+@router.get("/auth/github")
+async def github_login():
+    """Redirect to GitHub OAuth"""
+    github_client_id = os.getenv("GITHUB_CLIENT_ID")
+    github_callback_url = os.getenv("GITHUB_CALLBACK_URL", "http://localhost:8000/auth/github/callback")
+    
+    if not github_client_id:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="GitHub OAuth not configured"
+        )
+    
+    github_auth_url = (
+        f"https://github.com/login/oauth/authorize"
+        f"?client_id={github_client_id}"
+        f"&redirect_uri={github_callback_url}"
+        f"&scope=repo,user:email"
+    )
+    
+    return {"url": github_auth_url}
+
+
+@router.get("/auth/github/callback")
+async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
+    """Handle GitHub OAuth callback"""
+    github_client_id = os.getenv("GITHUB_CLIENT_ID")
+    github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")
+    
+    if not github_client_id or not github_client_secret:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="GitHub OAuth not configured"
+        )
+    
+    try:
+        # Exchange code for access token
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                "https://github.com/login/oauth/access_token",
+                json={
+                    "client_id": github_client_id,
+                    "client_secret": github_client_secret,
+                    "code": code
+                },
+                headers={"Accept": "application/json"}
+            )
+            token_data = token_response.json()
+            
+            if "error" in token_data:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"GitHub OAuth error: {token_data.get('error_description', 'Unknown error')}"
+                )
+            
+            github_token = token_data.get("access_token")
+            
+            if not github_token:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to get GitHub access token"
+                )
+        
+        # Get user info from GitHub
+        async with httpx.AsyncClient() as client:
+            user_response = await client.get(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"Bearer {github_token}",
+                    "Accept": "application/json"
+                }
+            )
+            
+            if user_response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to get GitHub user info"
+                )
+            
+            github_user = user_response.json()
+            
+            # Get user's email if not public
+            email = github_user.get("email")
+            if not email:
+                email_response = await client.get(
+                    "https://api.github.com/user/emails",
+                    headers={
+                        "Authorization": f"Bearer {github_token}",
+                        "Accept": "application/json"
+                    }
+                )
+                emails = email_response.json()
+                # Get primary email
+                for e in emails:
+                    if e.get("primary"):
+                        email = e.get("email")
+                        break
+                if not email and emails:
+                    email = emails[0].get("email")
+        
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not get email from GitHub account"
+            )
+        
+        # Create or update user in database
+        user = await crud.get_user_by_email(db, email)
+        if not user:
+            # Create new user with GitHub OAuth
+            user = models.User(
+                email=email,
+                hashed_password=hash_password(secrets.token_urlsafe(32))  # Random password
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+        
+        # Update GitHub info
+        user.github_token = github_token
+        user.github_username = github_user.get("login")
+        await db.commit()
+        
+        # Create JWT tokens
+        access_token = create_access_token(user.email)
+        refresh_token_obj = await create_refresh_token(user.id, db)
+        
+        # Redirect to frontend with tokens
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        return RedirectResponse(
+            url=f"{frontend_url}/auth/callback?access_token={access_token}&refresh_token={refresh_token_obj.token}"
+        )
+    
+    except httpx.HTTPError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"GitHub API error: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OAuth error: {str(e)}"
+        )
+
+
+# ========================
+# Password Reset
+# ========================
 
 
 @router.post("/reset-password/request")
