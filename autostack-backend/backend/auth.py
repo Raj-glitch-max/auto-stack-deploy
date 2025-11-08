@@ -333,12 +333,18 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
         
         # Create JWT tokens
         access_token = create_access_token(user.email)
-        refresh_token_obj = await create_refresh_token(user.id, db)
+        
+        # Create refresh token
+        refresh_token = create_refresh_token()
+        refresh_token_hash = hash_token(refresh_token)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        expires_at_naive = expires_at.replace(tzinfo=None)
+        await crud.create_refresh_token(db, user=user, token_hash=refresh_token_hash, expires_at=expires_at_naive)
         
         # Redirect to frontend with tokens
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
         return RedirectResponse(
-            url=f"{frontend_url}/auth/callback?access_token={access_token}&refresh_token={refresh_token_obj.token}"
+            url=f"{frontend_url}/auth/callback?access_token={access_token}&refresh_token={refresh_token}"
         )
     
     except httpx.HTTPError as e:
