@@ -14,8 +14,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend source code (everything inside current folder)
-COPY . /app
+# Create backend package directory structure
+RUN mkdir -p /app/backend
+
+# Copy backend source code into backend package
+COPY *.py /app/backend/
+RUN touch /app/backend/__init__.py
 
 # Copy Alembic migration setup
 COPY alembic /app/alembic
