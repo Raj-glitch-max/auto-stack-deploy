@@ -178,30 +178,54 @@ async def refresh_token(
     payload: schemas.TokenRefresh, db: AsyncSession = Depends(get_db)
 ):
     """Refresh access token using refresh token."""
-    refresh_token_hash = hash_token(payload.refresh_token)
-    refresh_token_obj = await crud.get_refresh_token_by_hash(db, refresh_token_hash)
-    
-    if not refresh_token_obj:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
+    try:
+        refresh_token_hash = hash_token(payload.refresh_token)
+        refresh_token_obj = await crud.get_refresh_token_by_hash(db, refresh_token_hash)
+        
+        if not refresh_token_obj:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
+            )
+        
+        # Check if token is expired (handle both naive and timezone-aware datetimes)
+        now = datetime.now(timezone.utc)
+        expires_at = refresh_token_obj.expires_at
+        if expires_at.tzinfo is None:
+            # If stored datetime is naive, make it timezone-aware
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        
+        if expires_at < now:
+            await crud.delete_refresh_token(db, refresh_token_obj)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired"
+            )
+        
+        # Create new access token
+        user = await crud.get_user_by_id(db, refresh_token_obj.user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+            )
+        
+        # Create new access token and return BOTH tokens
+        access_token = create_access_token(user.email)
+        
+        # Return the same refresh token (it's still valid)
+        return schemas.TokenResponse(
+            access_token=access_token,
+            refresh_token=payload.refresh_token
         )
-    
-    # Check if token is expired
-    if refresh_token_obj.expires_at < datetime.now(timezone.utc):
-        await crud.delete_refresh_token(db, refresh_token_obj)
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log the actual error for debugging
+        print(f"ERROR in /refresh: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Refresh token error: {str(e)}"
         )
-    
-    # Create new access token
-    user = await crud.get_user_by_id(db, refresh_token_obj.user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-        )
-    
-    access_token = create_access_token(str(user.id))
-    return schemas.TokenResponse(access_token=access_token)
 
 
 # ========================

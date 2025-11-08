@@ -76,11 +76,16 @@ api.interceptors.response.use(
 
           const res = await api.post("/refresh", { refresh_token: refreshToken });
           const accessToken = res.data.access_token;
+          const newRefreshToken = res.data.refresh_token;
           
-          // Update stored tokens
+          // Update stored tokens (both access and refresh)
           (globalThis as any)._AS_ACCESS_TOKEN = accessToken;
+          (globalThis as any)._AS_REFRESH_TOKEN = newRefreshToken;
           if (typeof window !== 'undefined') {
             localStorage.setItem("access_token", accessToken);
+            if (newRefreshToken) {
+              localStorage.setItem("refresh_token", newRefreshToken);
+            }
           }
           
           processQueue(null, accessToken);
