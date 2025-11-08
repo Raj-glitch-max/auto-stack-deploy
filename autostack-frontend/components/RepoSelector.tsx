@@ -35,11 +35,24 @@ export function RepoSelector({ onSelect, selectedRepo }: RepoSelectorProps) {
     try {
       setLoading(true)
       setError(null)
+      
+      // Check if user has access token
+      const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null
+      if (!token) {
+        setError("Please connect your GitHub account first")
+        setLoading(false)
+        return
+      }
+      
       const response = await api.get("/github/repos")
       setRepos(response.data.repos)
     } catch (err: any) {
       console.error("Error fetching repos:", err)
-      setError(err.response?.data?.detail || "Failed to fetch repositories")
+      if (err.response?.status === 401) {
+        setError("Please connect your GitHub account first")
+      } else {
+        setError(err.response?.data?.detail || "Failed to fetch repositories")
+      }
     } finally {
       setLoading(false)
     }
