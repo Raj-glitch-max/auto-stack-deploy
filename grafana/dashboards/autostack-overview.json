@@ -1,0 +1,110 @@
+{
+  "dashboard": {
+    "title": "AutoStack Overview",
+    "tags": ["autostack", "overview"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "CPU Usage",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "avg(cpu_percent) by (hostname)",
+            "legendFormat": "{{hostname}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Memory Usage",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "avg(memory_percent) by (hostname)",
+            "legendFormat": "{{hostname}}"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Disk Usage",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "avg(disk_percent) by (hostname)",
+            "legendFormat": "{{hostname}}"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Network Traffic",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(network_sent_bytes[5m])",
+            "legendFormat": "Sent - {{hostname}}"
+          },
+          {
+            "expr": "rate(network_recv_bytes[5m])",
+            "legendFormat": "Received - {{hostname}}"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Active Agents",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "count(up{job='autostack-agents'} == 1)"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Active Deployments",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 16},
+        "targets": [
+          {
+            "expr": "count(deployment_status{status='running'})"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "System Uptime",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "avg(uptime_seconds)"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "API Response Time",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 16},
+        "targets": [
+          {
+            "expr": "avg(http_request_duration_seconds)"
+          }
+        ]
+      }
+    ],
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    }
+  }
+}

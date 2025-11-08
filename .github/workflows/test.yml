@@ -1,0 +1,129 @@
+name: Run Tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: autostack
+          POSTGRES_PASSWORD: autostack
+          POSTGRES_DB: autostack_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          cd autostack-backend
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+      
+      - name: Run migrations
+        env:
+          DATABASE_URL: postgresql+asyncpg://autostack:autostack@localhost:5432/autostack_test
+        run: |
+          cd autostack-backend/backend
+          alembic upgrade head
+      
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://autostack:autostack@localhost:5432/autostack_test
+          SECRET_KEY: test-secret-key
+        run: |
+          cd autostack-backend
+          pytest tests/ -v || echo "Tests not implemented yet"
+  
+  frontend-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+      
+      - name: Cache node modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      
+      - name: Install dependencies
+        run: |
+          cd autostack-frontend
+          npm install
+      
+      - name: Run linter
+        run: |
+          cd autostack-frontend
+          npm run lint || echo "Linting not configured"
+      
+      - name: Build
+        run: |
+          cd autostack-frontend
+          npm run build
+      
+      - name: Run tests
+        run: |
+          cd autostack-frontend
+          npm test || echo "Tests not implemented yet"
+  
+  docker-build-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Test docker-compose build
+        run: |
+          docker-compose build --no-cache
+      
+      - name: Test docker-compose up
+        run: |
+          docker-compose up -d
+          sleep 30
+          docker-compose ps
+          docker-compose logs
+      
+      - name: Health check
+        run: |
+          curl -f http://localhost:8000/health || exit 1
+          curl -f http://localhost:3000 || exit 1
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose down -v

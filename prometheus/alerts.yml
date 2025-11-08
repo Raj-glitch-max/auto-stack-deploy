@@ -1,0 +1,105 @@
+# Prometheus Alert Rules for AutoStack
+
+groups:
+  - name: autostack_alerts
+    interval: 30s
+    rules:
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: cpu_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected on {{ $labels.hostname }}"
+          description: "CPU usage is {{ $value }}% on {{ $labels.hostname }}"
+
+      # Critical CPU Usage
+      - alert: CriticalCPUUsage
+        expr: cpu_percent > 95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical CPU usage on {{ $labels.hostname }}"
+          description: "CPU usage is {{ $value }}% on {{ $labels.hostname }}"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: memory_percent > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.hostname }}"
+          description: "Memory usage is {{ $value }}% on {{ $labels.hostname }}"
+
+      # Critical Memory Usage
+      - alert: CriticalMemoryUsage
+        expr: memory_percent > 95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical memory usage on {{ $labels.hostname }}"
+          description: "Memory usage is {{ $value }}% on {{ $labels.hostname }}"
+
+      # High Disk Usage
+      - alert: HighDiskUsage
+        expr: disk_percent > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High disk usage on {{ $labels.hostname }}"
+          description: "Disk usage is {{ $value }}% on {{ $labels.hostname }}"
+
+      # Critical Disk Usage
+      - alert: CriticalDiskUsage
+        expr: disk_percent > 95
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical disk usage on {{ $labels.hostname }}"
+          description: "Disk usage is {{ $value }}% on {{ $labels.hostname }}"
+
+      # Agent Down
+      - alert: AgentDown
+        expr: up{job="autostack-agents"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Agent {{ $labels.hostname }} is down"
+          description: "Agent {{ $labels.agent_id }} on {{ $labels.hostname }} has been down for more than 2 minutes"
+
+      # Backend API Down
+      - alert: BackendDown
+        expr: up{job="autostack-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AutoStack Backend is down"
+          description: "Backend API has been unreachable for more than 1 minute"
+
+      # High API Response Time
+      - alert: SlowAPIResponse
+        expr: http_request_duration_seconds > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow API responses detected"
+          description: "API response time is {{ $value }}s"
+
+      # Database Connection Issues
+      - alert: DatabaseConnectionIssues
+        expr: up{job="postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection issues"
+          description: "PostgreSQL database has been unreachable for more than 2 minutes"
