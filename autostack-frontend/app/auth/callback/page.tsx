@@ -29,6 +29,23 @@ function CallbackContent() {
         ;(globalThis as any)._AS_ACCESS_TOKEN = accessToken
         ;(globalThis as any)._AS_REFRESH_TOKEN = refreshToken
 
+        // Fetch user info to get GitHub username
+        try {
+          const response = await fetch("http://localhost:8000/me", {
+            headers: {
+              "Authorization": `Bearer ${accessToken}`
+            }
+          })
+          if (response.ok) {
+            const userData = await response.json()
+            if (userData.github_username) {
+              localStorage.setItem("github_username", userData.github_username)
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch user info:", err)
+        }
+
         // Redirect to deploy page
         setTimeout(() => {
           router.push("/deploy")

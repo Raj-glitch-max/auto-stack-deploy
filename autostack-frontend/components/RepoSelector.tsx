@@ -22,14 +22,13 @@ interface RepoSelectorProps {
 
 export function RepoSelector({ onSelect, selectedRepo }: RepoSelectorProps) {
   const [repos, setRepos] = useState<Repo[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [isOpen, setIsOpen] = useState(false)
 
-  useEffect(() => {
-    fetchRepos()
-  }, [])
+  // Don't fetch on mount - only fetch when user opens dropdown
+  // This prevents API calls that might trigger redirects
 
   const fetchRepos = async () => {
     try {
@@ -92,7 +91,12 @@ export function RepoSelector({ onSelect, selectedRepo }: RepoSelectorProps) {
       </label>
       
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen && repos.length === 0 && !error) {
+            fetchRepos()
+          }
+          setIsOpen(!isOpen)
+        }}
         className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-left flex items-center justify-between hover:bg-white/10 transition-colors"
       >
         {selectedRepo ? (

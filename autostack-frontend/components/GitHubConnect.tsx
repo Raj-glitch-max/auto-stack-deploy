@@ -14,26 +14,17 @@ export function GitHubConnect() {
   }, [])
 
   const checkGitHubConnection = async () => {
-    try {
-      // Check if user has access token
-      const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null
-      if (!token) {
-        // No token, user not logged in
-        setLoading(false)
-        return
-      }
+    // Just check localStorage, don't make API calls
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem("access_token")
+      const storedUsername = localStorage.getItem("github_username")
       
-      const response = await api.get("/me")
-      if (response.data.github_username) {
+      if (token && storedUsername) {
         setIsConnected(true)
-        setGithubUsername(response.data.github_username)
+        setGithubUsername(storedUsername)
       }
-    } catch (error) {
-      // Silently fail - user probably not logged in
-      console.log("Not authenticated or no GitHub connection")
-    } finally {
-      setLoading(false)
     }
+    setLoading(false)
   }
 
   const connectGitHub = async () => {
