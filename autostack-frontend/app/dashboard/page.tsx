@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
@@ -16,13 +18,17 @@ interface Deployment {
 }
 
 export default function DashboardPage() {
-  const { user, loading } = useAuth()
+  const auth = useAuth()
+  const user = auth?.user
+  const loading = auth?.loading
   const router = useRouter()
 
   const [deployments, setDeployments] = useState<Deployment[]>([])
+  const [metrics, setMetrics] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [logModal, setLogModal] = useState<{ isOpen: boolean; repo: string; status: string }>({
+  const [logModal, setLogModal] = useState<{ isOpen: boolean; deployId: string; repo: string; status: string }>({
     isOpen: false,
+    deployId: "",
     repo: "",
     status: "",
   })
@@ -35,19 +41,37 @@ export default function DashboardPage() {
   }, [loading, user, router])
 
   useEffect(() => {
-    if (user) fetchDeployments()
+    if (user) {
+      fetchDeployments()
+      fetchMetrics()
+    }
   }, [user])
 
   const fetchDeployments = async () => {
     try {
       const res = await api.get("/deployments")
-      // FastAPI returns { deployments: [...] } — extract it properly
-      const data = res.data.deployments || res.data
-      setDeployments(data)
+      // FastAPI returns { deployments: [...] }
+      const data = res.data.deployments || res.data || []
+      setDeployments(data.map((d: any) => ({
+        id: d.id,
+        repo: d.repo,
+        branch: d.branch,
+        status: d.status,
+        deployedAt: d.created_at ? new Date(d.created_at).toLocaleDateString() : "Unknown",
+      })))
     } catch (err) {
       console.error("Error fetching deployments:", err)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchMetrics = async () => {
+    try {
+      const res = await api.get("/metrics/overview")
+      setMetrics(res.data)
+    } catch (err) {
+      console.error("Error fetching metrics:", err)
     }
   }
 
@@ -97,6 +121,33 @@ export default function DashboardPage() {
           </button>
         </motion.div>
 
+        {/* Metrics Overview */}
+        {metrics && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10"
+          >
+            <div className="bg-[#111]/70 backdrop-blur border border-white/10 rounded-lg p-4">
+              <p className="text-gray-400 text-sm mb-2">CPU Usage</p>
+              <p className="text-2xl font-semibold">{metrics.total_cpu_usage?.toFixed(1) || 0}%</p>
+            </div>
+            <div className="bg-[#111]/70 backdrop-blur border border-white/10 rounded-lg p-4">
+              <p className="text-gray-400 text-sm mb-2">Memory Usage</p>
+              <p className="text-2xl font-semibold">{metrics.total_memory_usage?.toFixed(1) || 0}%</p>
+            </div>
+            <div className="bg-[#111]/70 backdrop-blur border border-white/10 rounded-lg p-4">
+              <p className="text-gray-400 text-sm mb-2">Uptime</p>
+              <p className="text-2xl font-semibold">{metrics.uptime_percentage?.toFixed(1) || 0}%</p>
+            </div>
+            <div className="bg-[#111]/70 backdrop-blur border border-white/10 rounded-lg p-4">
+              <p className="text-gray-400 text-sm mb-2">Active Agents</p>
+              <p className="text-2xl font-semibold">{metrics.active_agents || 0}/{metrics.total_agents || 0}</p>
+            </div>
+          </motion.div>
+        )}
+
         {/* Deployments list */}
         {deployments.length === 0 ? (
           <div className="border border-white/10 rounded-xl p-10 text-center text-gray-400">
@@ -131,6 +182,7 @@ export default function DashboardPage() {
                     onClick={() =>
                       setLogModal({
                         isOpen: true,
+                        deployId: d.id,
                         repo: d.repo,
                         status: d.status,
                       })
@@ -149,7 +201,7 @@ export default function DashboardPage() {
       {/* Logs Modal */}
       <LogModal
         isOpen={logModal.isOpen}
-        onClose={() => setLogModal({ isOpen: false, repo: "", status: "" })}
+        onClose={() => setLogModal({ isOpen: false, deployId: "", repo: "", status: "" })}
         repo={logModal.repo}
         status={logModal.status}
       />

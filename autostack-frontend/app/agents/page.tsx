@@ -1,78 +1,113 @@
 "use client"
 
-import { useState } from "react"
+export const dynamic = "force-dynamic"
+
+import { useState, useEffect } from "react"
 import { Plus } from "lucide-react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { AgentGrid } from "@/components/agents/agent-grid"
 import { Modal } from "@/components/ui/modal"
+import api from "@/lib/api"
+import { useAuth } from "@/components/AuthProvider"
+
+
+
+
+interface Agent {
+  id: string
+  name: string
+  host: string
+  status: "online" | "offline"
+  cpu_usage: number
+  memory_usage: number
+  last_heartbeat: string | null
+  ip: string
+}
 
 export default function AgentsPage() {
+  const auth = useAuth()
+  const user = auth?.user
+  const authLoading = auth?.loading
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [agents, setAgents] = useState([
-    {
-      id: 1,
-      name: "Agent-01",
-      host: "prod-server-01",
-      status: "online" as const,
-      cpu: 45,
-      memory: 62,
-      lastHeartbeat: "30 seconds ago",
-      ip: "192.168.1.101",
-    },
-    {
-      id: 2,
-      name: "Agent-02",
-      host: "prod-server-02",
-      status: "online" as const,
-      cpu: 38,
-      memory: 55,
-      lastHeartbeat: "45 seconds ago",
-      ip: "192.168.1.102",
-    },
-    {
-      id: 3,
-      name: "Agent-03",
-      host: "staging-server",
-      status: "offline" as const,
-      cpu: 0,
-      memory: 0,
-      lastHeartbeat: "2 hours ago",
-      ip: "192.168.1.103",
-    },
-    {
-      id: 4,
-      name: "Agent-04",
-      host: "prod-server-03",
-      status: "online" as const,
-      cpu: 72,
-      memory: 81,
-      lastHeartbeat: "15 seconds ago",
-      ip: "192.168.1.104",
-    },
-    {
-      id: 5,
-      name: "Agent-05",
-      host: "backup-server",
-      status: "online" as const,
-      cpu: 28,
-      memory: 42,
-      lastHeartbeat: "1 minute ago",
-      ip: "192.168.1.105",
-    },
-    {
-      id: 6,
-      name: "Agent-06",
-      host: "dev-server",
-      status: "online" as const,
-      cpu: 55,
-      memory: 68,
-      lastHeartbeat: "20 seconds ago",
-      ip: "192.168.1.106",
-    },
-  ])
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [registerForm, setRegisterForm] = useState({ name: "", host: "", ip: "" })
+  const [registerLoading, setRegisterLoading] = useState(false)
 
-  const onlineCount = agents.filter((a) => a.status === "online").length
-  const offlineCount = agents.filter((a) => a.status === "offline").length
+  useEffect(() => {
+    if (!authLoading && user) {
+      fetchAgents()
+    }
+  }, [user, authLoading])
+
+  const fetchAgents = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await api.get("/agents")
+      setAgents(res.data || [])
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to fetch agents")
+      console.error("Error fetching agents:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRegisterAgent = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setRegisterLoading(true)
+    try {
+      await api.post("/agents/register", registerForm)
+      setRegisterForm({ name: "", host: "", ip: "" })
+      setIsModalOpen(false)
+      await fetchAgents()
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to register agent")
+    } finally {
+      setRegisterLoading(false)
+    }
+  }
+
+  const formatLastHeartbeat = (timestamp: string | null) => {
+    if (!timestamp) return "Never"
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffSecs = Math.floor(diffMs / 1000)
+    const diffMins = Math.floor(diffSecs / 60)
+    const diffHours = Math.floor(diffMins / 60)
+    
+    if (diffSecs < 60) return `${diffSecs} seconds ago`
+    if (diffMins < 60) return `${diffMins} minutes ago`
+    return `${diffHours} hours ago`
+  }
+
+  // Transform API data to match component expectations
+  const transformedAgents = agents.map(agent => ({
+    id: agent.id,
+    name: agent.name,
+    host: agent.host,
+    status: agent.status as "online" | "offline",
+    cpu: agent.cpu_usage,
+    memory: agent.memory_usage,
+    lastHeartbeat: formatLastHeartbeat(agent.last_heartbeat),
+    ip: agent.ip,
+  }))
+
+  const onlineCount = transformedAgents.filter((a) => a.status === "online").length
+  const offlineCount = transformedAgents.filter((a) => a.status === "offline").length
+
+  if (authLoading || loading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <p className="text-text-secondary">Loading agents...</p>
+        </div>
+      </MainLayout>
+    )
+  }
 
   return (
     <MainLayout>
@@ -108,33 +143,75 @@ export default function AgentsPage() {
           </div>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="bg-error/10 border border-error/20 rounded-lg p-4 text-error text-sm">
+            {error}
+          </div>
+        )}
+
         {/* Agents Grid */}
-        <AgentGrid agents={agents} />
+        {transformedAgents.length === 0 ? (
+          <div className="glass rounded-xl p-12 text-center">
+            <p className="text-text-secondary mb-4">No agents registered yet</p>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="text-accent hover:text-accent/80 transition"
+            >
+              Register your first agent
+            </button>
+          </div>
+        ) : (
+          <AgentGrid agents={transformedAgents} />
+        )}
       </div>
 
       {/* Add Agent Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Agent">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">Agent Token</label>
-            <input
-              type="password"
-              placeholder="Paste your agent token..."
-              className="w-full bg-surface text-text border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-accent transition-smooth"
-            />
-          </div>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Register New Agent">
+        <form onSubmit={handleRegisterAgent} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-2">Agent Name</label>
             <input
               type="text"
-              placeholder="e.g. Agent-07"
+              placeholder="e.g. Agent-01"
+              required
               className="w-full bg-surface text-text border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-accent transition-smooth"
+              value={registerForm.name}
+              onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
             />
           </div>
-          <button className="w-full bg-accent hover:bg-accent/90 text-background font-medium py-2 rounded-lg transition-smooth">
-            Add Agent
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">Host</label>
+            <input
+              type="text"
+              placeholder="e.g. prod-server-01"
+              required
+              className="w-full bg-surface text-text border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-accent transition-smooth"
+              value={registerForm.host}
+              onChange={(e) => setRegisterForm({ ...registerForm, host: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">IP Address</label>
+            <input
+              type="text"
+              placeholder="e.g. 192.168.1.100"
+              required
+              className="w-full bg-surface text-text border border-white/10 rounded-lg px-4 py-2 focus:outline-none focus:border-accent transition-smooth"
+              value={registerForm.ip}
+              onChange={(e) => setRegisterForm({ ...registerForm, ip: e.target.value })}
+            />
+          </div>
+          <button 
+            type="submit"
+            disabled={registerLoading}
+            className={`w-full bg-accent hover:bg-accent/90 text-background font-medium py-2 rounded-lg transition-smooth ${
+              registerLoading ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+          >
+            {registerLoading ? "Registering..." : "Register Agent"}
           </button>
-        </div>
+        </form>
       </Modal>
     </MainLayout>
   )

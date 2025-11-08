@@ -3,7 +3,7 @@
 import { AlertTriangle, AlertCircle, Info, X } from "lucide-react"
 
 interface Alert {
-  id: number
+  id: string | number
   severity: "critical" | "warning" | "info"
   source: string
   message: string
@@ -12,7 +12,7 @@ interface Alert {
 
 interface AlertsTableProps {
   alerts: Alert[]
-  onDismiss: (id: number) => void
+  onDismiss: (id: string | number) => void
 }
 
 const severityConfig = {

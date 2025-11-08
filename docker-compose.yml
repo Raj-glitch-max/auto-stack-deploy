@@ -1,0 +1,79 @@
+services:
+  db:
+    image: postgres:16
+    container_name: autostack-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: autostack
+      POSTGRES_PASSWORD: autostack
+      POSTGRES_DB: autostack
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autostack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./autostack-backend
+      dockerfile: backend/Dockerfile
+    container_name: autostack-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://autostack:autostack@db:5432/autostack
+      SECRET_KEY: ${SECRET_KEY:-autostack-secret-key-change-in-production}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
+    ports:
+      - "8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./autostack-backend/backend:/app/backend
+    restart: unless-stopped
+    command: sh -c "cd /app && alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build:
+      context: ./autostack-frontend
+      dockerfile: Dockerfile
+    container_name: autostack-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: autostack-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus.yml
+    command:
+      - "--config.file=/etc/prometheus.yml"
+    ports:
+      - "9090:9090"
+    restart: always
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: autostack-grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    restart: always
+
+volumes:
+  postgres_data:
+

@@ -1,65 +1,277 @@
+from __future__ import annotations
+
+import hashlib
 import os
-from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
+import secrets
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 
-from . import models, schemas
+from . import crud, models, schemas
 from .db import get_db
 
-router = APIRouter()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Load environment secret
+router = APIRouter(tags=["auth"])
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+
 SECRET_KEY = os.getenv("SECRET_KEY", "autostack-secret-key")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30"))
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login", auto_error=False)
+
 
 # ========================
 # Helper functions
 # ========================
+
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+
+def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    to_encode = {"sub": subject, "exp": expire, "type": "access"}
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_refresh_token() -> str:
+    """Generate a random refresh token."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_token(token: str) -> str:
+    """Hash a token for storage."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+async def authenticate_user(db: AsyncSession, email: str, password: str) -> models.User | None:
+    user = await crud.get_user_by_email(db, email)
+    if not user or not verify_password(password, user.password_hash):
+        return None
+    return user
+
+
+async def get_current_user(
+    db: AsyncSession = Depends(get_db), token: str | None = Depends(oauth2_scheme)
+) -> models.User:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    if not token:
+        raise credentials_exception
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        token_data = schemas.TokenPayload(**payload)
+        if payload.get("type") != "access":
+            raise credentials_exception
+    except (JWTError, ValidationError):
+        raise credentials_exception
+
+    user = await crud.get_user_by_id(db, token_data.sub)
+    if user is None:
+        raise credentials_exception
+
+    return user
+
+
+async def get_current_user_or_api_key(
+    db: AsyncSession = Depends(get_db),
+    token: str | None = Depends(oauth2_scheme),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+) -> models.User:
+    """Authenticate user via JWT token or API key."""
+    # Try API key first
+    if x_api_key:
+        key_hash = hash_token(x_api_key)
+        api_key = await crud.get_api_key_by_hash(db, key_hash)
+        if api_key:
+            # Update last used
+            await crud.update_api_key_last_used(db, api_key)
+            user = await crud.get_user_by_id(db, api_key.user_id)
+            if user:
+                return user
+
+    # Fall back to JWT token
+    return await get_current_user(db, token)
+
 
 # ========================
-# Signup Endpoint
+# Auth endpoints
 # ========================
-@router.post("/signup", response_model=schemas.UserResponse)
-async def signup(user: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(models.User).filter_by(email=user.email))
-    existing_user = result.scalar_one_or_none()
+
+
+@router.post("/signup", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
+async def signup(payload: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
+    existing_user = await crud.get_user_by_email(db, payload.email)
     if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
-    hashed_pw = hash_password(user.password)
-    db_user = models.User(email=user.email, password_hash=hashed_pw, created_at=datetime.utcnow())
-    db.add(db_user)
-    await db.commit()
-    await db.refresh(db_user)
-    return db_user
+    password_hash = hash_password(payload.password)
+    user = await crud.create_user(db, email=payload.email, password_hash=password_hash)
+    
+    # Create audit log
+    await crud.create_audit_log(
+        db, user=user, action="signup", resource_type="user", resource_id=str(user.id)
+    )
+    
+    return user
 
-# ========================
-# Login Endpoint
-# ========================
-@router.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(models.User).filter_by(email=form_data.username))
-    user = result.scalar_one_or_none()
-    if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+@router.post("/login", response_model=schemas.TokenResponseWithRefresh)
+async def login(payload: schemas.UserLogin, db: AsyncSession = Depends(get_db)):
+    user = await authenticate_user(db, payload.email, payload.password)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    # Create access token
+    access_token = create_access_token(str(user.id))
+    
+    # Create refresh token
+    refresh_token = create_refresh_token()
+    refresh_token_hash = hash_token(refresh_token)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    await crud.create_refresh_token(db, user=user, token_hash=refresh_token_hash, expires_at=expires_at)
+    
+    # Create audit log
+    await crud.create_audit_log(db, user=user, action="login", resource_type="auth")
+    
+    return schemas.TokenResponseWithRefresh(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.get("/me", response_model=schemas.UserResponse)
+async def read_me(current_user: models.User = Depends(get_current_user)):
+    return current_user
+
+
+@router.post("/logout")
+async def logout():
+    """Placeholder endpoint for client-side logout handling."""
+
+    return {"detail": "Logout handled on client"}
+
+
+@router.post("/refresh", response_model=schemas.TokenResponse)
+async def refresh_token(
+    payload: schemas.TokenRefresh, db: AsyncSession = Depends(get_db)
+):
+    """Refresh access token using refresh token."""
+    refresh_token_hash = hash_token(payload.refresh_token)
+    refresh_token_obj = await crud.get_refresh_token_by_hash(db, refresh_token_hash)
+    
+    if not refresh_token_obj:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
+        )
+    
+    # Check if token is expired
+    if refresh_token_obj.expires_at < datetime.now(timezone.utc):
+        await crud.delete_refresh_token(db, refresh_token_obj)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired"
+        )
+    
+    # Create new access token
+    user = await crud.get_user_by_id(db, refresh_token_obj.user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
+    
+    access_token = create_access_token(str(user.id))
+    return schemas.TokenResponse(access_token=access_token)
+
+
+@router.post("/reset-password/request")
+async def request_password_reset(
+    payload: schemas.UserLogin,  # Only needs email
+    db: AsyncSession = Depends(get_db),
+):
+    """Request password reset - sends reset token (in production, send via email)."""
+    user = await crud.get_user_by_email(db, payload.email)
+    
+    # Always return success to prevent email enumeration
+    # In production, send email with reset token
+    if user:
+        # Generate reset token
+        reset_token = create_refresh_token()  # Reuse token generation
+        reset_token_hash = hash_token(reset_token)
+        
+        # Store reset token (in production, use separate table with expiration)
+        # For now, we'll use a simple approach - store in user table or separate table
+        # For MVP, we'll just return the token (in production, send via email)
+        
+        # Create audit log
+        await crud.create_audit_log(
+            db,
+            user=user,
+            action="password_reset_request",
+            resource_type="user",
+            resource_id=str(user.id),
+            details=f"Password reset requested for {payload.email}",
+        )
+    
+    # Always return success message (security best practice)
+    return {
+        "detail": "If an account with that email exists, a password reset link has been sent."
+    }
+
+
+@router.post("/reset-password/confirm")
+async def confirm_password_reset(
+    payload: dict,  # {token: str, new_password: str}
+    db: AsyncSession = Depends(get_db),
+):
+    """Confirm password reset with token and new password."""
+    token = payload.get("token")
+    new_password = payload.get("new_password")
+    
+    if not token or not new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token and new password are required"
+        )
+    
+    if len(new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters"
+        )
+    
+    # In production, verify token from database/email
+    # For MVP, we'll use a simple approach
+    # For now, return error - this needs proper token storage
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Password reset confirmation requires email service integration"
+    )
+
+
+__all__ = [
+    "router",
+    "get_current_user",
+    "get_current_user_or_api_key",
+    "hash_password",
+    "verify_password",
+    "create_access_token",
+    "create_refresh_token",
+    "hash_token",
+]

@@ -14,21 +14,37 @@ export default function LoginPage() {
     setLoading(true)
     setMessage("")
     try {
-      const data = new FormData()
-      data.append("username", form.email)
-      data.append("password", form.password)
+      // Use JSON instead of FormData
+      const res = await api.post("/login", {
+        email: form.email,
+        password: form.password
+      })
 
-      const res = await api.post("/login", data, { withCredentials: true })
-
-      // store access token temporarily
-      localStorage.setItem("token", res.data.access_token)
+      // Store tokens
+      const accessToken = res.data.access_token
+      const refreshToken = res.data.refresh_token
+      
+      // Store in localStorage and global for API interceptor
+      localStorage.setItem("access_token", accessToken)
+      localStorage.setItem("refresh_token", refreshToken)
+      ;(globalThis as any)._AS_ACCESS_TOKEN = accessToken
+      ;(globalThis as any)._AS_REFRESH_TOKEN = refreshToken
 
       setMessage("Login successful! Redirecting...")
       setTimeout(() => {
         window.location.href = "/dashboard"
       }, 1000)
     } catch (err: any) {
-      setMessage(err.response?.data?.detail || "Invalid credentials")
+      console.error("Login error:", err)
+      if (err.response?.data?.detail) {
+        setMessage(err.response.data.detail)
+      } else if (err.message) {
+        setMessage(err.message)
+      } else if (err.code === "ECONNREFUSED" || err.code === "ERR_NETWORK") {
+        setMessage("Cannot connect to server. Please check if the backend is running.")
+      } else {
+        setMessage("Invalid credentials. Please try again.")
+      }
     } finally {
       setLoading(false)
     }

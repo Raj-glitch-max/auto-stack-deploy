@@ -11,17 +11,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function loadMe() {
     try {
-      // try to get access token via refresh first
-      const r = await api.post("/refresh", {}, { withCredentials: true }).catch(() => null);
-      if (r && r.data?.access_token) {
-        (globalThis as any)._AS_ACCESS_TOKEN = r.data.access_token;
-        const res = await api.get("/me");
-        setUser(res.data);
-      } else {
+      // Try to get token from localStorage first
+      if (typeof window !== 'undefined') {
+        const storedToken = localStorage.getItem("access_token");
+        const storedRefresh = localStorage.getItem("refresh_token");
+        if (storedToken) {
+          (globalThis as any)._AS_ACCESS_TOKEN = storedToken;
+        }
+        if (storedRefresh) {
+          (globalThis as any)._AS_REFRESH_TOKEN = storedRefresh;
+        }
+      }
+      
+      // Try to get user info
+      const res = await api.get("/me");
+      setUser(res.data);
+    } catch (e) {
+      // If that fails, try refresh token
+      try {
+        const refreshToken = typeof window !== 'undefined' 
+          ? localStorage.getItem("refresh_token")
+          : (globalThis as any)._AS_REFRESH_TOKEN;
+        
+        if (refreshToken) {
+          const r = await api.post("/refresh", { refresh_token: refreshToken });
+          const accessToken = r.data.access_token;
+          (globalThis as any)._AS_ACCESS_TOKEN = accessToken;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem("access_token", accessToken);
+          }
+          const res = await api.get("/me");
+          setUser(res.data);
+        } else {
+          setUser(null);
+        }
+      } catch (refreshError) {
         setUser(null);
       }
-    } catch (e) {
-      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -32,12 +58,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function login(email: string, password: string) {
-    // sends form-data to /login (auth.login expects form-data)
-    const fd = new FormData();
-    fd.append("username", email);
-    fd.append("password", password);
-    const res = await api.post("/login", fd, { withCredentials: true });
-    (globalThis as any)._AS_ACCESS_TOKEN = res.data.access_token;
+    // Use JSON instead of FormData
+    const res = await api.post("/login", { email, password });
+    const accessToken = res.data.access_token;
+    const refreshToken = res.data.refresh_token;
+    
+    // Store tokens
+    (globalThis as any)._AS_ACCESS_TOKEN = accessToken;
+    (globalThis as any)._AS_REFRESH_TOKEN = refreshToken;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem("access_token", accessToken);
+      localStorage.setItem("refresh_token", refreshToken);
+    }
+    
     const me = await api.get("/me");
     setUser(me.data);
     return me.data;
@@ -49,8 +82,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function logout() {
-    await api.post("/logout");
+    try {
+      await api.post("/logout");
+    } catch (e) {
+      // Ignore errors on logout
+    }
+    // Clear tokens
     (globalThis as any)._AS_ACCESS_TOKEN = null;
+    (globalThis as any)._AS_REFRESH_TOKEN = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+    }
     setUser(null);
   }
 

@@ -18,8 +18,17 @@ const processQueue = (error: any, token: string | null = null) => {
 };
 
 api.interceptors.request.use((config) => {
-  const token = (globalThis as any)._AS_ACCESS_TOKEN;
-  if (token && config.headers) config.headers["Authorization"] = `Bearer ${token}`;
+  // Try to get token from global first, then localStorage
+  let token = (globalThis as any)._AS_ACCESS_TOKEN;
+  if (!token && typeof window !== 'undefined') {
+    token = localStorage.getItem("access_token");
+    if (token) {
+      (globalThis as any)._AS_ACCESS_TOKEN = token;
+    }
+  }
+  if (token && config.headers) {
+    config.headers["Authorization"] = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -44,13 +53,43 @@ api.interceptors.response.use(
 
       return new Promise(async (resolve, reject) => {
         try {
-          const res = await api.post("/refresh", {}, { withCredentials: true });
+          // Get refresh token from localStorage or global
+          let refreshToken = (globalThis as any)._AS_REFRESH_TOKEN;
+          if (!refreshToken && typeof window !== 'undefined') {
+            refreshToken = localStorage.getItem("refresh_token");
+          }
+          
+          if (!refreshToken) {
+            // No refresh token, redirect to login
+            if (typeof window !== 'undefined') {
+              window.location.href = "/login";
+            }
+            processQueue(new Error("No refresh token"), null);
+            reject(new Error("No refresh token"));
+            return;
+          }
+
+          const res = await api.post("/refresh", { refresh_token: refreshToken });
           const accessToken = res.data.access_token;
+          
+          // Update stored tokens
           (globalThis as any)._AS_ACCESS_TOKEN = accessToken;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem("access_token", accessToken);
+          }
+          
           processQueue(null, accessToken);
           originalReq.headers["Authorization"] = "Bearer " + accessToken;
           resolve(api(originalReq));
         } catch (e) {
+          // Refresh failed, clear tokens and redirect to login
+          (globalThis as any)._AS_ACCESS_TOKEN = null;
+          (globalThis as any)._AS_REFRESH_TOKEN = null;
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("refresh_token");
+            window.location.href = "/login";
+          }
           processQueue(e, null);
           reject(e);
         } finally {

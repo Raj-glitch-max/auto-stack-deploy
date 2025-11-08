@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 
 interface Agent {
-  id: number
+  id: string
   name: string
   host: string
   status: "online" | "offline"

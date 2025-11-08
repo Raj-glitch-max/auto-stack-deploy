@@ -5,7 +5,7 @@ import { Plus } from "lucide-react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { NewDeploymentModal } from "@/components/deployments/new-deployment-modal"
 import { DeploymentsTable } from "@/components/deployments/deployments-table"
-import { LogsModal } from "@/components/deployments/logs-modal"
+import { LogModal } from "@/components/deployments/log-modal"
 import type { DeploymentData } from "@/components/deployments/new-deployment-modal"
 import api from "@/lib/api"
 
@@ -145,7 +145,7 @@ export default function DeploymentsPage() {
         onDeploy={handleDeploy}
       />
 
-      <LogsModal deployId={selectedDeployId} isOpen={isLogsOpen} onClose={closeLogs} />
+      <LogModal deployId={selectedDeployId} isOpen={isLogsOpen} onClose={closeLogs} />
     </MainLayout>
   )
 }
