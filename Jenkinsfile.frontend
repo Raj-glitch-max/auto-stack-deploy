@@ -1,0 +1,164 @@
+pipeline {
+    agent any
+    
+    environment {
+        AWS_REGION = 'ap-south-1'
+        AWS_ACCOUNT_ID = '367749063363'
+        ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/autostack-frontend"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+        ARGOCD_REPO = 'git@github.com:Raj-glitch-max/auto-stack-deploy.git'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "🔍 Checking out code..."
+                checkout scm
+                sh 'git log -1 --pretty=format:"%h - %an: %s"'
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                echo "🐳 Building Docker image for frontend..."
+                script {
+                    dir('autostack-frontend') {
+                        sh """
+                            docker build -t ${ECR_REPO}:${IMAGE_TAG} \
+                              -t ${ECR_REPO}:${GIT_COMMIT_SHORT} \
+                              -t ${ECR_REPO}:latest \
+                              --build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+                              --build-arg VCS_REF=${GIT_COMMIT_SHORT} \
+                              --build-arg BUILD_VERSION=${IMAGE_TAG} \
+                              .
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                echo "🧪 Running tests..."
+                script {
+                    sh """
+                        echo "Frontend tests would run here"
+                        # cd autostack-frontend && npm test
+                    """
+                }
+            }
+        }
+        
+        stage('Push to ECR') {
+            steps {
+                echo "📤 Pushing image to ECR..."
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', 
+                                  credentialsId: 'aws-credentials']]) {
+                    script {
+                        sh """
+                            aws ecr get-login-password --region ${AWS_REGION} | \
+                              docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                            
+                            docker push ${ECR_REPO}:${IMAGE_TAG}
+                            docker push ${ECR_REPO}:${GIT_COMMIT_SHORT}
+                            docker push ${ECR_REPO}:latest
+                            
+                            echo "✅ Pushed image: ${ECR_REPO}:${IMAGE_TAG}"
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Update GitOps Repo') {
+            steps {
+                echo "📝 Updating GitOps repository..."
+                withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                    script {
+                        sh """
+                            rm -rf gitops-repo
+                            git clone https://${GITHUB_TOKEN}@github.com/Raj-glitch-max/auto-stack-deploy.git gitops-repo
+                            cd gitops-repo
+                            
+                            sed -i 's|repository:.*autostack-frontend|repository: ${ECR_REPO}|' infra/argocd/apps/frontend-app.yaml
+                            sed -i 's|tag:.*|tag: "${IMAGE_TAG}"|' infra/argocd/apps/frontend-app.yaml
+                            
+                            git config user.email "jenkins@autostack.com"
+                            git config user.name "Jenkins CI/CD"
+                            git add infra/argocd/apps/frontend-app.yaml
+                            git commit -m "🚀 Deploy frontend ${IMAGE_TAG} (commit: ${GIT_COMMIT_SHORT})" || true
+                            git push origin main
+                            
+                            echo "✅ Updated GitOps repo"
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Trigger ArgoCD Sync') {
+            steps {
+                echo "🔄 Triggering ArgoCD sync..."
+                script {
+                    sh """
+                        aws eks update-kubeconfig --region ${AWS_REGION} --name autostack-prod-eks
+                        
+                        kubectl -n argocd patch application autostack-frontend \
+                          --type merge \
+                          --patch '{"operation":{"initiatedBy":{"username":"jenkins"},"sync":{"revision":"HEAD"}}}'
+                        
+                        echo "✅ ArgoCD sync triggered"
+                        """
+                }
+            }
+        }
+        
+        stage('Wait for Deployment') {
+            steps {
+                echo "⏳ Waiting for deployment..."
+                script {
+                    timeout(time: 5, unit: 'MINUTES') {
+                        sh """
+                            kubectl wait --for=condition=Healthy \
+                              --timeout=300s \
+                              -n argocd \
+                              application/autostack-frontend
+                            
+                            kubectl rollout status deployment/autostack-frontend -n default --timeout=300s
+                            
+                            echo "✅ Deployment successful!"
+                        """
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo """
+            ✅ ========================================
+            ✅ FRONTEND DEPLOYMENT SUCCESSFUL!
+            ✅ ========================================
+            
+            📦 Image: ${ECR_REPO}:${IMAGE_TAG}
+            🔖 Commit: ${GIT_COMMIT_SHORT}
+            🏗️  Build: #${BUILD_NUMBER}
+            ⏱️  Duration: ${currentBuild.durationString}
+            """
+        }
+        
+        failure {
+            echo """
+            ❌ FRONTEND DEPLOYMENT FAILED!
+            🏗️  Build: #${BUILD_NUMBER}
+            """
+        }
+        
+        always {
+            sh 'docker system prune -f || true'
+            sh 'rm -rf gitops-repo || true'
+        }
+    }
+}

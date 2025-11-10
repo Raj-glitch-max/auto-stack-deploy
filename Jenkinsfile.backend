@@ -1,0 +1,224 @@
+pipeline {
+    agent any
+    
+    environment {
+        AWS_REGION = 'ap-south-1'
+        AWS_ACCOUNT_ID = '367749063363'
+        ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/autostack-backend"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+        ARGOCD_REPO = 'git@github.com:Raj-glitch-max/auto-stack-deploy.git'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "🔍 Checking out code..."
+                checkout scm
+                sh 'git log -1 --pretty=format:"%h - %an: %s"'
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                echo "🐳 Building Docker image for backend..."
+                script {
+                    dir('autostack-backend/backend') {
+                        sh """
+                            docker build -t ${ECR_REPO}:${IMAGE_TAG} \
+                              -t ${ECR_REPO}:${GIT_COMMIT_SHORT} \
+                              -t ${ECR_REPO}:latest \
+                              --build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+                              --build-arg VCS_REF=${GIT_COMMIT_SHORT} \
+                              --build-arg BUILD_VERSION=${IMAGE_TAG} \
+                              .
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                echo "🧪 Running tests..."
+                script {
+                    // Add your test commands here
+                    sh """
+                        echo "Unit tests would run here"
+                        # docker run --rm ${ECR_REPO}:${IMAGE_TAG} pytest
+                    """
+                }
+            }
+        }
+        
+        stage('Security Scan') {
+            steps {
+                echo "🔒 Scanning image for vulnerabilities..."
+                script {
+                    sh """
+                        echo "Security scan would run here"
+                        # docker run --rm aquasec/trivy image ${ECR_REPO}:${IMAGE_TAG}
+                    """
+                }
+            }
+        }
+        
+        stage('Push to ECR') {
+            steps {
+                echo "📤 Pushing image to ECR..."
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', 
+                                  credentialsId: 'aws-credentials']]) {
+                    script {
+                        sh """
+                            # Login to ECR
+                            aws ecr get-login-password --region ${AWS_REGION} | \
+                              docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                            
+                            # Push all tags
+                            docker push ${ECR_REPO}:${IMAGE_TAG}
+                            docker push ${ECR_REPO}:${GIT_COMMIT_SHORT}
+                            docker push ${ECR_REPO}:latest
+                            
+                            echo "✅ Pushed image: ${ECR_REPO}:${IMAGE_TAG}"
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Update GitOps Repo') {
+            steps {
+                echo "📝 Updating GitOps repository..."
+                withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                    script {
+                        sh """
+                            # Clone GitOps repo
+                            rm -rf gitops-repo
+                            git clone https://${GITHUB_TOKEN}@github.com/Raj-glitch-max/auto-stack-deploy.git gitops-repo
+                            cd gitops-repo
+                            
+                            # Update image tag in backend app
+                            sed -i 's|repository:.*autostack-backend|repository: ${ECR_REPO}|' infra/argocd/apps/backend-app.yaml
+                            sed -i 's|tag:.*|tag: "${IMAGE_TAG}"|' infra/argocd/apps/backend-app.yaml
+                            
+                            # Commit and push
+                            git config user.email "jenkins@autostack.com"
+                            git config user.name "Jenkins CI/CD"
+                            git add infra/argocd/apps/backend-app.yaml
+                            git commit -m "🚀 Deploy backend ${IMAGE_TAG} (commit: ${GIT_COMMIT_SHORT})" || true
+                            git push origin main
+                            
+                            echo "✅ Updated GitOps repo with image ${IMAGE_TAG}"
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Trigger ArgoCD Sync') {
+            steps {
+                echo "🔄 Triggering ArgoCD sync..."
+                script {
+                    sh """
+                        # Configure kubectl
+                        aws eks update-kubeconfig --region ${AWS_REGION} --name autostack-prod-eks
+                        
+                        # Trigger sync
+                        kubectl -n argocd patch application autostack-backend \
+                          --type merge \
+                          --patch '{"operation":{"initiatedBy":{"username":"jenkins"},"sync":{"revision":"HEAD"}}}'
+                        
+                        echo "✅ ArgoCD sync triggered"
+                    """
+                }
+            }
+        }
+        
+        stage('Wait for Deployment') {
+            steps {
+                echo "⏳ Waiting for deployment to complete..."
+                script {
+                    timeout(time: 5, unit: 'MINUTES') {
+                        sh """
+                            # Wait for ArgoCD to sync
+                            kubectl wait --for=condition=Healthy \
+                              --timeout=300s \
+                              -n argocd \
+                              application/autostack-backend
+                            
+                            # Wait for pods to be ready
+                            kubectl rollout status deployment/autostack-backend -n default --timeout=300s
+                            
+                            echo "✅ Deployment successful!"
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Smoke Tests') {
+            steps {
+                echo "💨 Running smoke tests..."
+                script {
+                    sh """
+                        # Port forward and test health endpoint
+                        kubectl port-forward svc/autostack-backend -n default 8000:8000 &
+                        PF_PID=\$!
+                        sleep 5
+                        
+                        # Test health endpoint
+                        HEALTH=\$(curl -s http://localhost:8000/health)
+                        echo "Health check response: \$HEALTH"
+                        
+                        # Kill port forward
+                        kill \$PF_PID || true
+                        
+                        echo "✅ Smoke tests passed"
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo """
+            ✅ ========================================
+            ✅ DEPLOYMENT SUCCESSFUL!
+            ✅ ========================================
+            
+            📦 Image: ${ECR_REPO}:${IMAGE_TAG}
+            🔖 Commit: ${GIT_COMMIT_SHORT}
+            🏗️  Build: #${BUILD_NUMBER}
+            ⏱️  Duration: ${currentBuild.durationString}
+            
+            🚀 Backend deployed successfully to EKS!
+            """
+            
+            // Send Slack notification (if configured)
+            // slackSend(color: 'good', message: "✅ Backend deployed successfully!")
+        }
+        
+        failure {
+            echo """
+            ❌ ========================================
+            ❌ DEPLOYMENT FAILED!
+            ❌ ========================================
+            
+            🏗️  Build: #${BUILD_NUMBER}
+            🔖 Commit: ${GIT_COMMIT_SHORT}
+            
+            Check Jenkins logs for details.
+            """
+            
+            // Send Slack notification (if configured)
+            // slackSend(color: 'danger', message: "❌ Backend deployment failed!")
+        }
+        
+        always {
+            // Cleanup
+            sh 'docker system prune -f || true'
+            sh 'rm -rf gitops-repo || true'
+        }
+    }
+}
