@@ -506,10 +506,10 @@ async def google_login():
     print(f"   Callback URL: {google_callback_url}")
     
     if not google_client_id:
-        print("❌ ERROR: GOOGLE_CLIENT_ID not set in environment")
+        print("⚠️  WARNING: GOOGLE_CLIENT_ID not set - returning not configured response")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Google OAuth not configured. Please set GOOGLE_CLIENT_ID in environment"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "not_configured", "message": "Google OAuth is not configured on this server. Please use email/password login."}
         )
     
     # Build Google OAuth URL - redirect_uri must match exactly what's configured in Google Cloud Console
@@ -546,15 +546,15 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
     print(f"   Callback URL: {google_callback_url}")
     
     if not google_client_id or not google_client_secret:
-        print("❌ ERROR: Google OAuth credentials not configured")
+        print("⚠️  WARNING: Google OAuth credentials not configured")
         missing = []
         if not google_client_id:
             missing.append("GOOGLE_CLIENT_ID")
         if not google_client_secret:
             missing.append("GOOGLE_CLIENT_SECRET")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Google OAuth not configured. Missing: {', '.join(missing)}"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "not_configured", "message": f"Google OAuth not configured. Missing: {', '.join(missing)}"}
         )
     
     try:
