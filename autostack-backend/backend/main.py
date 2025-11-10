@@ -22,6 +22,7 @@ from . import crud, models
 from .auth import get_current_user, router as auth_router
 from .db import AsyncSessionLocal, get_db
 from .middleware import ErrorHandlingMiddleware, RateLimitMiddleware
+from .middleware.rate_limit import RateLimitMiddleware as NewRateLimitMiddleware, AccountLockoutMiddleware
 from .deploy_engine import DeployEngine
 from .k8s_deploy_engine import K8sDeployEngine
 from .schemas import (
@@ -102,7 +103,9 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(DynamicCORSMiddleware)
-app.add_middleware(RateLimitMiddleware, calls=50, period=60.0)
+# NEW: Enhanced rate limiting and account lockout
+app.add_middleware(NewRateLimitMiddleware)
+app.add_middleware(AccountLockoutMiddleware)
 app.add_middleware(ErrorHandlingMiddleware)
 
 # Note: Database tables are managed by Alembic migrations
