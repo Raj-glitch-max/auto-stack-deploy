@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install to a virtual environment
-COPY backend/requirements.txt .
+COPY requirements.txt .
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir --upgrade pip && \
@@ -40,12 +40,12 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN mkdir -p /app/backend
 
 # Copy backend source code into backend package
-COPY backend/*.py /app/backend/
+COPY *.py /app/backend/
 RUN touch /app/backend/__init__.py
 
 # Copy Alembic migration setup
 COPY alembic /app/alembic
-COPY backend/alembic.ini /app/alembic.ini
+COPY alembic.ini /app/alembic.ini
 
 # Create non-root user
 RUN useradd -m -u 1001 appuser && \
