@@ -130,6 +130,10 @@ app.include_router(pipelines_router, prefix="/api")
 from .routers.templates import router as templates_router
 app.include_router(templates_router, prefix="/api")
 
+# Mount Deployments router (NEW: Rollback + Smoke Tests!)
+from .routers.deployments import router as deployments_router
+app.include_router(deployments_router, prefix="/api", tags=["deployments"])
+
 # Initialize Deploy Engines
 deploy_engine = DeployEngine()  # Legacy local Docker deployment
 k8s_deploy_engine = K8sDeployEngine()  # New Kubernetes deployment for production
