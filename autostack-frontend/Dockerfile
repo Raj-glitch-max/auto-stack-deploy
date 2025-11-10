@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 
 # Install dependencies with clean cache
-RUN npm ci --only=production --ignore-scripts && \
+RUN npm ci --only=production --ignore-scripts --legacy-peer-deps && \
     npm cache clean --force
 
 # ============================================
@@ -26,7 +26,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json* ./
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci --ignore-scripts
+RUN npm ci --ignore-scripts --legacy-peer-deps
 
 # Copy source code
 COPY . .
