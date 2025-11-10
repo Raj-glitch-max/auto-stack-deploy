@@ -28,9 +28,9 @@ class DeployEngine:
         try:
             self.docker_client = docker.from_env()
             logger.info("Docker client initialized successfully")
-        except DockerException as e:
-            logger.error(f"Failed to initialize Docker client: {e}")
-            raise
+        except (DockerException, Exception) as e:
+            logger.warning(f"Docker client not available (running in container?): {e}")
+            self.docker_client = None
         
         self.workspace_base = os.getenv("DEPLOY_WORKSPACE", "/tmp/autostack-deploys")
         self.base_port = int(os.getenv("DEPLOY_BASE_PORT", "10000"))
@@ -183,11 +183,14 @@ CMD ["nginx", "-g", "daemon off;"]
         Args:
             repo_path: Path to cloned repository
             deploy_id: Unique deployment ID
-            project_type: Optional project type (will auto-detect if None)
+            project_type: Type of project (optional, will be detected)
             
         Returns:
             Tuple of (success, deployment_info, error_message)
         """
+        if not self.docker_client:
+            return False, {}, "Docker not available in this environment (running in Kubernetes)"
+        
         try:
             # Detect project type if not provided
             if not project_type:
@@ -276,6 +279,9 @@ CMD ["nginx", "-g", "daemon off;"]
     
     async def stop_deployment(self, container_id: str) -> Tuple[bool, str]:
         """Stop and remove a deployment container"""
+        if not self.docker_client:
+            return False, "Docker not available in this environment"
+        
         try:
             container = self.docker_client.containers.get(container_id)
             container.stop(timeout=10)
@@ -289,6 +295,9 @@ CMD ["nginx", "-g", "daemon off;"]
     
     async def get_container_logs(self, container_id: str, tail: int = 100) -> str:
         """Get logs from a container"""
+        if not self.docker_client:
+            return "Docker not available in this environment (running in Kubernetes)"
+        
         try:
             container = self.docker_client.containers.get(container_id)
             logs = container.logs(tail=tail, timestamps=True)
