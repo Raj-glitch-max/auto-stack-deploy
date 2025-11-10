@@ -1,0 +1,67 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: autostack-backend
+  namespace: argocd
+  labels:
+    app: autostack
+    component: backend
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/Raj-glitch-max/auto-stack-deploy.git
+    targetRevision: HEAD
+    path: infra/helm/autostack-backend
+    helm:
+      releaseName: autostack-backend
+      values: |
+        replicaCount: 1
+        
+        image:
+          repository: 367749063363.dkr.ecr.ap-south-1.amazonaws.com/autostack-backend
+          pullPolicy: IfNotPresent
+          tag: "latest"
+        
+        service:
+          type: ClusterIP
+          port: 8000
+        
+        ingress:
+          enabled: false
+        
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 250m
+            memory: 256Mi
+        
+        env:
+          - name: DATABASE_URL
+            value: "postgresql://autostack:password@autostack-db:5432/autostack"
+          - name: REDIS_URL
+            value: "redis://autostack-redis:6379"
+          - name: ENVIRONMENT
+            value: "production"
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 1m
