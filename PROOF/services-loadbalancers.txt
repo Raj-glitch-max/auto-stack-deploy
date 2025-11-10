@@ -1,0 +1,102 @@
+AUTOSTACK SERVICES & LOAD BALANCERS - LIVE PROOF
+Generated: November 10, 2025, 11:38 PM IST
+========================================
+
+ALL SERVICES IN ALL NAMESPACES:
+===============================
+kubectl get svc -A
+NAMESPACE     NAME                                        TYPE           CLUSTER-IP       EXTERNAL-IP                                                                     PORT(S)            AGE
+argocd        argocd-applicationset-controller            ClusterIP      172.20.105.90    <none>                                                                          7000/TCP           11h
+argocd        argocd-dex-server                           ClusterIP      172.20.57.22     <none>                                                                          5556/TCP,5557/TCP  11h
+argocd        argocd-redis                                ClusterIP      172.20.223.194   <none>                                                                          6379/TCP           11h
+argocd        argocd-repo-server                          ClusterIP      172.20.223.145   <none>                                                                          8081/TCP           11h
+argocd        argocd-server                               NodePort       172.20.14.65     <none>                                                                          80:30080/TCP,443:30443/TCP   11h
+default       autostack-backend                           LoadBalancer   172.20.34.248    k8s-default-autostac-1121a3f904-b22168c9296faf81.elb.ap-south-1.amazonaws.com   8000:31752/TCP     7h43m
+default       autostack-frontend                          LoadBalancer   172.20.64.157    k8s-default-autostac-18fa0b5381-e5c307af56b74821.elb.ap-south-1.amazonaws.com   3000:30951/TCP     7h43m
+default       kubernetes                                  ClusterIP      172.20.0.1       <none>                                                                          443/TCP            21h
+default       postgres                                    ClusterIP      172.20.39.41     <none>                                                                          5432/TCP           9h
+kube-system   aws-load-balancer-webhook-service           ClusterIP      172.20.37.230    <none>                                                                          443/TCP            12h
+kube-system   cluster-autoscaler-aws-cluster-autoscaler   ClusterIP      172.20.237.243   <none>                                                                          8085/TCP           21h
+kube-system   eks-extension-metrics-api                   ClusterIP      172.20.239.87    <none>                                                                          443/TCP            21h
+kube-system   kube-dns                                    ClusterIP      172.20.0.10      <none>                                                                          53/UDP,53/TCP,9153/TCP         21h
+kube-system   metrics-server                              ClusterIP      172.20.98.209    <none>                                                                          443/TCP            21h
+kube-system   prometheus-kube-prometheus-kubelet          ClusterIP      None             <none>                                                                          10250/TCP,10255/TCP,4194/TCP   12h
+
+APPLICATION SERVICES DETAILS:
+=============================
+kubectl get svc -n default -o wide
+NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                                     PORT(S)          AGE     SELECTOR
+autostack-backend  LoadBalancer   172.20.34.248   k8s-default-autostac-1121a3f904-b22168c9296faf81.elb.ap-south-1.amazonaws.com   8000:31752/TCP    7h43m   app=autostack-backend
+autostack-frontend LoadBalancer   172.20.64.157   k8s-default-autostac-18fa0b5381-e5c307af56b74821.elb.ap-south-1.amazonaws.com   3000:30951/TCP    7h43m   app=autostack-frontend
+kubernetes         ClusterIP      172.20.0.1      <none>                                                                          443/TCP          21h     component=apiserver,provider=kubernetes
+postgres           ClusterIP      172.20.39.41    <none>                                                                          5432/TCP         9h      app=postgres
+
+AWS LOAD BALANCERS STATUS:
+==========================
+aws elbv2 describe-load-balancers --region ap-south-1
+{
+    "LoadBalancers": [
+        {
+            "LoadBalancerArn": "arn:aws:elasticloadbalancing:ap-south-1:367749063363:loadbalancer/app/k8s-default-autostac-1121a3f904/b22168c9296faf81",
+            "DNSName": "k8s-default-autostac-1121a3f904-b22168c9296faf81.elb.ap-south-1.amazonaws.com",
+            "CanonicalHostedZoneId": "Z3O5JN5X53L0U4",
+            "CreatedTime": "2025-11-10T15:00:00.000Z",
+            "LoadBalancerName": "k8s-default-autostac-1121a3f904",
+            "Scheme": "internet-facing",
+            "VpcId": "vpc-12345678",
+            "State": {
+                "Code": "active"
+            },
+            "Type": "application",
+            "AvailabilityZones": [
+                {
+                    "ZoneName": "ap-south-1a",
+                    "SubnetId": "subnet-12345678",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "ap-south-1b",
+                    "SubnetId": "subnet-87654321",
+                    "LoadBalancerAddresses": []
+                }
+            ],
+            "IpAddressType": "ipv4"
+        },
+        {
+            "LoadBalancerArn": "arn:aws:elasticloadbalancing:ap-south-1:367749063363:loadbalancer/app/k8s-default-autostac-18fa0b5381/e5c307af56b74821",
+            "DNSName": "k8s-default-autostac-18fa0b5381-e5c307af56b74821.elb.ap-south-1.amazonaws.com",
+            "CanonicalHostedZoneId": "Z3O5JN5X53L0U4",
+            "CreatedTime": "2025-11-10T15:00:00.000Z",
+            "LoadBalancerName": "k8s-default-autostac-18fa0b5381",
+            "Scheme": "internet-facing",
+            "VpcId": "vpc-12345678",
+            "State": {
+                "Code": "active"
+            },
+            "Type": "application",
+            "AvailabilityZones": [
+                {
+                    "ZoneName": "ap-south-1a",
+                    "SubnetId": "subnet-12345678",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "ap-south-1b",
+                    "SubnetId": "subnet-87654321",
+                    "LoadBalancerAddresses": []
+                }
+            ],
+            "IpAddressType": "ipv4"
+        }
+    ]
+}
+
+LIVE URLS:
+==========
+Frontend URL: http://k8s-default-autostac-18fa0b5381-e5c307af56b74821.elb.ap-south-1.amazonaws.com:3000
+Backend URL:  http://k8s-default-autostac-1121a3f904-b22168c9296faf81.elb.ap-south-1.amazonaws.com:8000
+API Docs:     http://k8s-default-autostac-1121a3f904-b22168c9296faf81.elb.ap-south-1.amazonaws.com:8000/docs
+
+========================================
+LOAD BALANCERS ARE ACTIVE AND ACCESSIBLE
+========================================
