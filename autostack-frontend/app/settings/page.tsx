@@ -6,6 +6,7 @@ import { MainLayout } from "@/components/layout/main-layout"
 import { SettingsSection } from "@/components/settings/settings-section"
 import { ThemeToggle } from "@/components/settings/theme-toggle"
 import { ApiKeyItem } from "@/components/settings/api-key-item"
+import { Breadcrumbs } from "@/components/ui/breadcrumbs"
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState({
@@ -37,6 +38,9 @@ export default function SettingsPage() {
   return (
     <MainLayout>
       <div className="space-y-8 max-w-3xl">
+        {/* Breadcrumbs */}
+        <Breadcrumbs items={[{ label: "Settings" }]} />
+        
         {/* Header */}
         <div className="animate-fade-in-slide-down">
           <h1 className="text-3xl font-bold text-text mb-2">Settings</h1>

@@ -4,6 +4,7 @@ aiosignal==1.4.0
 aiosqlite==0.20.0
 alembic==1.17.1
 asyncpg==0.30.0
+psycopg2-binary==2.9.9
 annotated-doc==0.0.3
 annotated-types==0.7.0
 anyio==4.11.0

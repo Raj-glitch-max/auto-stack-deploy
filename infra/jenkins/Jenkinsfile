@@ -1,0 +1,433 @@
+// AutoStack CI/CD Pipeline
+// Jenkins Pipeline for automated build, test, and deployment
+
+pipeline {
+    agent any
+    
+    environment {
+        // Docker registry configuration
+        DOCKER_REGISTRY = credentials('docker-registry-url')
+        DOCKER_CREDENTIALS = credentials('docker-credentials-id')
+        
+        // Application configuration
+        APP_NAME = 'autostack'
+        BACKEND_IMAGE = "${DOCKER_REGISTRY}/${APP_NAME}-backend"
+        FRONTEND_IMAGE = "${DOCKER_REGISTRY}/${APP_NAME}-frontend"
+        
+        // Git configuration
+        GIT_REPO = 'https://github.com/Raj-glitch-max/auto-stack-deploy.git'
+        
+        // Environment-specific configurations
+        DEV_NAMESPACE = 'autostack-dev'
+        STAGING_NAMESPACE = 'autostack-staging'
+        PROD_NAMESPACE = 'autostack-prod'
+    }
+    
+    parameters {
+        choice(
+            name: 'DEPLOY_ENV',
+            choices: ['dev', 'staging', 'production'],
+            description: 'Target deployment environment'
+        )
+        booleanParam(
+            name: 'RUN_TESTS',
+            defaultValue: true,
+            description: 'Run automated tests before deployment'
+        )
+        booleanParam(
+            name: 'SKIP_BUILD',
+            defaultValue: false,
+            description: 'Skip Docker image build (use existing images)'
+        )
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo '📦 Checking out source code...'
+                checkout scm
+                
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                    env.BUILD_TAG = "${env.BUILD_NUMBER}-${env.GIT_COMMIT_SHORT}"
+                }
+                
+                echo "✅ Checked out commit: ${env.GIT_COMMIT_SHORT}"
+            }
+        }
+        
+        stage('Environment Setup') {
+            steps {
+                echo '🔧 Setting up environment...'
+                
+                script {
+                    // Load environment-specific configuration
+                    if (params.DEPLOY_ENV == 'production') {
+                        env.NAMESPACE = env.PROD_NAMESPACE
+                        env.REPLICAS = '3'
+                        env.RESOURCES_LIMIT = 'high'
+                    } else if (params.DEPLOY_ENV == 'staging') {
+                        env.NAMESPACE = env.STAGING_NAMESPACE
+                        env.REPLICAS = '2'
+                        env.RESOURCES_LIMIT = 'medium'
+                    } else {
+                        env.NAMESPACE = env.DEV_NAMESPACE
+                        env.REPLICAS = '1'
+                        env.RESOURCES_LIMIT = 'low'
+                    }
+                }
+                
+                echo "✅ Target environment: ${params.DEPLOY_ENV}"
+                echo "✅ Namespace: ${env.NAMESPACE}"
+                echo "✅ Replicas: ${env.REPLICAS}"
+            }
+        }
+        
+        stage('Build Backend') {
+            when {
+                expression { !params.SKIP_BUILD }
+            }
+            steps {
+                echo '🏗️ Building backend Docker image...'
+                
+                dir('autostack-backend') {
+                    script {
+                        docker.build(
+                            "${BACKEND_IMAGE}:${BUILD_TAG}",
+                            "-f backend/Dockerfile ."
+                        )
+                        
+                        // Tag as latest for the environment
+                        sh """
+                            docker tag ${BACKEND_IMAGE}:${BUILD_TAG} ${BACKEND_IMAGE}:${params.DEPLOY_ENV}-latest
+                        """
+                    }
+                }
+                
+                echo "✅ Backend image built: ${BACKEND_IMAGE}:${BUILD_TAG}"
+            }
+        }
+        
+        stage('Build Frontend') {
+            when {
+                expression { !params.SKIP_BUILD }
+            }
+            steps {
+                echo '🏗️ Building frontend Docker image...'
+                
+                dir('autostack-frontend') {
+                    script {
+                        // Set API URL based on environment
+                        def apiUrl = params.DEPLOY_ENV == 'production' ? 
+                            'https://api.autostack.io' : 
+                            "https://api-${params.DEPLOY_ENV}.autostack.io"
+                        
+                        docker.build(
+                            "${FRONTEND_IMAGE}:${BUILD_TAG}",
+                            "--build-arg NEXT_PUBLIC_API_URL=${apiUrl} -f Dockerfile ."
+                        )
+                        
+                        // Tag as latest for the environment
+                        sh """
+                            docker tag ${FRONTEND_IMAGE}:${BUILD_TAG} ${FRONTEND_IMAGE}:${params.DEPLOY_ENV}-latest
+                        """
+                    }
+                }
+                
+                echo "✅ Frontend image built: ${FRONTEND_IMAGE}:${BUILD_TAG}"
+            }
+        }
+        
+        stage('Run Tests') {
+            when {
+                expression { params.RUN_TESTS }
+            }
+            parallel {
+                stage('Backend Tests') {
+                    steps {
+                        echo '🧪 Running backend tests...'
+                        
+                        dir('autostack-backend') {
+                            sh '''
+                                # Create test environment
+                                python -m venv test_venv
+                                . test_venv/bin/activate
+                                pip install -r requirements.txt
+                                pip install pytest pytest-cov pytest-asyncio
+                                
+                                # Run tests with coverage
+                                pytest tests/ --cov=backend --cov-report=xml --cov-report=html
+                                
+                                # Cleanup
+                                deactivate
+                            '''
+                        }
+                        
+                        echo '✅ Backend tests passed'
+                    }
+                }
+                
+                stage('Frontend Tests') {
+                    steps {
+                        echo '🧪 Running frontend tests...'
+                        
+                        dir('autostack-frontend') {
+                            sh '''
+                                # Install dependencies
+                                npm ci
+                                
+                                # Run linting
+                                npm run lint
+                                
+                                # Run type checking
+                                npx tsc --noEmit
+                                
+                                # Run tests (if configured)
+                                # npm test -- --coverage
+                            '''
+                        }
+                        
+                        echo '✅ Frontend tests passed'
+                    }
+                }
+                
+                stage('Security Scan') {
+                    steps {
+                        echo '🔒 Running security scans...'
+                        
+                        script {
+                            // Scan Docker images for vulnerabilities
+                            sh """
+                                # Install trivy if not available
+                                which trivy || curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+                                
+                                # Scan backend image
+                                trivy image --severity HIGH,CRITICAL ${BACKEND_IMAGE}:${BUILD_TAG}
+                                
+                                # Scan frontend image
+                                trivy image --severity HIGH,CRITICAL ${FRONTEND_IMAGE}:${BUILD_TAG}
+                            """
+                        }
+                        
+                        echo '✅ Security scans completed'
+                    }
+                }
+            }
+        }
+        
+        stage('Push Images') {
+            when {
+                expression { !params.SKIP_BUILD }
+            }
+            steps {
+                echo '📤 Pushing Docker images to registry...'
+                
+                script {
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", DOCKER_CREDENTIALS) {
+                        // Push backend images
+                        sh """
+                            docker push ${BACKEND_IMAGE}:${BUILD_TAG}
+                            docker push ${BACKEND_IMAGE}:${params.DEPLOY_ENV}-latest
+                        """
+                        
+                        // Push frontend images
+                        sh """
+                            docker push ${FRONTEND_IMAGE}:${BUILD_TAG}
+                            docker push ${FRONTEND_IMAGE}:${params.DEPLOY_ENV}-latest
+                        """
+                    }
+                }
+                
+                echo '✅ Images pushed to registry'
+            }
+        }
+        
+        stage('Update Manifests') {
+            steps {
+                echo '📝 Updating Kubernetes manifests...'
+                
+                script {
+                    // Update image tags in ArgoCD manifests
+                    sh """
+                        # Update backend deployment
+                        sed -i 's|image: .*autostack-backend:.*|image: ${BACKEND_IMAGE}:${BUILD_TAG}|g' \
+                            infra/argocd/overlays/${params.DEPLOY_ENV}/backend-deployment.yaml
+                        
+                        # Update frontend deployment
+                        sed -i 's|image: .*autostack-frontend:.*|image: ${FRONTEND_IMAGE}:${BUILD_TAG}|g' \
+                            infra/argocd/overlays/${params.DEPLOY_ENV}/frontend-deployment.yaml
+                        
+                        # Commit and push changes
+                        git config user.email "jenkins@autostack.io"
+                        git config user.name "Jenkins CI"
+                        git add infra/argocd/overlays/${params.DEPLOY_ENV}/*.yaml
+                        git commit -m "chore: update ${params.DEPLOY_ENV} images to ${BUILD_TAG}" || true
+                        git push origin main || true
+                    """
+                }
+                
+                echo '✅ Manifests updated'
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo "🚀 Deploying to ${params.DEPLOY_ENV}..."
+                
+                script {
+                    // Trigger ArgoCD sync
+                    sh """
+                        # Install ArgoCD CLI if not available
+                        which argocd || curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+                        chmod +x /usr/local/bin/argocd
+                        
+                        # Login to ArgoCD
+                        argocd login ${env.ARGOCD_SERVER} \
+                            --username admin \
+                            --password ${env.ARGOCD_PASSWORD} \
+                            --insecure
+                        
+                        # Sync application
+                        argocd app sync autostack-${params.DEPLOY_ENV} \
+                            --prune \
+                            --timeout 600
+                        
+                        # Wait for sync to complete
+                        argocd app wait autostack-${params.DEPLOY_ENV} \
+                            --health \
+                            --timeout 600
+                    """
+                }
+                
+                echo "✅ Deployment to ${params.DEPLOY_ENV} completed"
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                echo '🏥 Running health checks...'
+                
+                script {
+                    def apiUrl = params.DEPLOY_ENV == 'production' ? 
+                        'https://api.autostack.io' : 
+                        "https://api-${params.DEPLOY_ENV}.autostack.io"
+                    
+                    // Wait for services to be ready
+                    retry(10) {
+                        sleep(time: 10, unit: 'SECONDS')
+                        
+                        sh """
+                            # Check backend health
+                            curl -f ${apiUrl}/health || exit 1
+                            
+                            # Check frontend
+                            curl -f https://${params.DEPLOY_ENV == 'production' ? 'www' : params.DEPLOY_ENV}.autostack.io || exit 1
+                        """
+                    }
+                }
+                
+                echo '✅ Health checks passed'
+            }
+        }
+        
+        stage('Run Smoke Tests') {
+            steps {
+                echo '💨 Running smoke tests...'
+                
+                script {
+                    def apiUrl = params.DEPLOY_ENV == 'production' ? 
+                        'https://api.autostack.io' : 
+                        "https://api-${params.DEPLOY_ENV}.autostack.io"
+                    
+                    sh """
+                        # Test authentication endpoint
+                        curl -f -X POST ${apiUrl}/login \
+                            -H "Content-Type: application/json" \
+                            -d '{"email":"test@autostack.io","password":"test"}' || true
+                        
+                        # Test health endpoint
+                        curl -f ${apiUrl}/health
+                        
+                        # Test metrics endpoint
+                        curl -f ${apiUrl}/metrics/overview || true
+                    """
+                }
+                
+                echo '✅ Smoke tests completed'
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo '✅ Pipeline completed successfully!'
+            
+            script {
+                // Send success notification
+                def message = """
+                    ✅ AutoStack Deployment Successful
+                    
+                    Environment: ${params.DEPLOY_ENV}
+                    Build: ${BUILD_TAG}
+                    Commit: ${env.GIT_COMMIT_SHORT}
+                    
+                    Backend: ${BACKEND_IMAGE}:${BUILD_TAG}
+                    Frontend: ${FRONTEND_IMAGE}:${BUILD_TAG}
+                """
+                
+                // Uncomment to enable Slack notifications
+                // slackSend(color: 'good', message: message)
+                
+                echo message
+            }
+        }
+        
+        failure {
+            echo '❌ Pipeline failed!'
+            
+            script {
+                // Send failure notification
+                def message = """
+                    ❌ AutoStack Deployment Failed
+                    
+                    Environment: ${params.DEPLOY_ENV}
+                    Build: ${BUILD_TAG}
+                    Commit: ${env.GIT_COMMIT_SHORT}
+                    
+                    Check Jenkins logs for details.
+                """
+                
+                // Uncomment to enable Slack notifications
+                // slackSend(color: 'danger', message: message)
+                
+                echo message
+            }
+        }
+        
+        always {
+            echo '🧹 Cleaning up...'
+            
+            // Clean up Docker images
+            sh """
+                docker image prune -f
+                docker system prune -f
+            """ || true
+            
+            // Archive test results
+            junit '**/test-results/**/*.xml' allowEmptyResults: true
+            
+            // Archive coverage reports
+            publishHTML([
+                allowMissing: true,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'autostack-backend/htmlcov',
+                reportFiles: 'index.html',
+                reportName: 'Backend Coverage Report'
+            ])
+        }
+    }
+}

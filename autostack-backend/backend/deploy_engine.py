@@ -1,6 +1,7 @@
 """
 Deploy Engine for AutoStack
 Handles GitHub repo cloning, Docker building, and container deployment
+Supports both local Docker and cloud EKS deployments via Jenkins
 """
 
 import os
@@ -14,6 +15,8 @@ from docker.errors import DockerException, BuildError, APIError
 import git
 from git.exc import GitCommandError
 import logging
+import httpx
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -344,4 +347,199 @@ CMD ["nginx", "-g", "daemon off;"]
             if repo_path:
                 self.cleanup_workspace(repo_path)
             
+            return False, {}, error_msg
+
+
+class JenkinsDeployEngine:
+    """Handles cloud deployments via Jenkins CI/CD"""
+    
+    def __init__(self):
+        self.jenkins_url = os.getenv("JENKINS_URL", "http://jenkins:8080")
+        self.jenkins_user = os.getenv("JENKINS_USER", "admin")
+        self.jenkins_token = os.getenv("JENKINS_TOKEN", "")
+        self.timeout = 30.0
+        
+        if not self.jenkins_token:
+            logger.warning("JENKINS_TOKEN not set - Jenkins integration may fail")
+    
+    async def trigger_jenkins_job(
+        self,
+        repo: str,
+        branch: str,
+        target: str = "both"
+    ) -> Tuple[bool, Dict, str]:
+        """
+        Trigger Jenkins pipeline job
+        
+        Args:
+            repo: Repository name
+            branch: Git branch to build
+            target: What to deploy (frontend, backend, both)
+            
+        Returns:
+            Tuple of (success, job_info, error_message)
+        """
+        try:
+            # Get Jenkins crumb for CSRF protection
+            crumb_url = f"{self.jenkins_url}/crumbIssuer/api/json"
+            
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                # Get crumb
+                crumb_response = await client.get(
+                    crumb_url,
+                    auth=(self.jenkins_user, self.jenkins_token)
+                )
+                
+                if crumb_response.status_code != 200:
+                    return False, {}, f"Failed to get Jenkins crumb: {crumb_response.status_code}"
+                
+                crumb_data = crumb_response.json()
+                crumb = crumb_data.get("crumb")
+                crumb_field = crumb_data.get("crumbRequestField", "Jenkins-Crumb")
+                
+                # Trigger build with parameters
+                job_url = f"{self.jenkins_url}/job/autostack-deploy/buildWithParameters"
+                
+                headers = {
+                    crumb_field: crumb
+                }
+                
+                params = {
+                    "REPO": repo,
+                    "BRANCH": branch,
+                    "TARGET": target
+                }
+                
+                logger.info(f"Triggering Jenkins job: {job_url} with params: {params}")
+                
+                build_response = await client.post(
+                    job_url,
+                    auth=(self.jenkins_user, self.jenkins_token),
+                    headers=headers,
+                    params=params
+                )
+                
+                if build_response.status_code not in [200, 201]:
+                    return False, {}, f"Failed to trigger Jenkins job: {build_response.status_code}"
+                
+                # Get queue item location from response headers
+                queue_url = build_response.headers.get("Location")
+                
+                if not queue_url:
+                    return False, {}, "No queue location returned from Jenkins"
+                
+                # Wait a bit for queue item to be created
+                await asyncio.sleep(2)
+                
+                # Get queue item info
+                queue_info_url = f"{queue_url}api/json"
+                queue_response = await client.get(
+                    queue_info_url,
+                    auth=(self.jenkins_user, self.jenkins_token)
+                )
+                
+                queue_data = queue_response.json()
+                
+                job_info = {
+                    "queued": True,
+                    "queue_url": queue_url,
+                    "jenkins_url": self.jenkins_url,
+                    "job_name": "autostack-deploy",
+                    "params": params
+                }
+                
+                # Try to get build number if available
+                if "executable" in queue_data:
+                    build_number = queue_data["executable"].get("number")
+                    build_url = queue_data["executable"].get("url")
+                    job_info.update({
+                        "build_number": build_number,
+                        "build_url": build_url,
+                        "queued": False
+                    })
+                
+                logger.info(f"Jenkins job triggered successfully: {job_info}")
+                return True, job_info, ""
+                
+        except httpx.TimeoutException:
+            error_msg = "Jenkins request timed out"
+            logger.error(error_msg)
+            return False, {}, error_msg
+        except httpx.RequestError as e:
+            error_msg = f"Jenkins request failed: {str(e)}"
+            logger.error(error_msg)
+            return False, {}, error_msg
+        except Exception as e:
+            error_msg = f"Failed to trigger Jenkins job: {str(e)}"
+            logger.error(error_msg)
+            return False, {}, error_msg
+    
+    async def get_build_status(
+        self,
+        build_url: str = None,
+        build_number: int = None
+    ) -> Tuple[bool, Dict, str]:
+        """
+        Get Jenkins build status
+        
+        Args:
+            build_url: Full build URL
+            build_number: Build number (if build_url not provided)
+            
+        Returns:
+            Tuple of (success, status_info, error_message)
+        """
+        try:
+            if not build_url and build_number:
+                build_url = f"{self.jenkins_url}/job/autostack-deploy/{build_number}"
+            
+            if not build_url:
+                return False, {}, "No build URL or number provided"
+            
+            status_url = f"{build_url}/api/json"
+            
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(
+                    status_url,
+                    auth=(self.jenkins_user, self.jenkins_token)
+                )
+                
+                if response.status_code != 200:
+                    return False, {}, f"Failed to get build status: {response.status_code}"
+                
+                build_data = response.json()
+                
+                # Map Jenkins status to simplified status
+                building = build_data.get("building", False)
+                result = build_data.get("result")
+                
+                if building:
+                    status = "running"
+                elif result == "SUCCESS":
+                    status = "succeeded"
+                elif result == "FAILURE":
+                    status = "failed"
+                elif result == "ABORTED":
+                    status = "aborted"
+                elif result is None:
+                    status = "queued"
+                else:
+                    status = "unknown"
+                
+                status_info = {
+                    "status": status,
+                    "building": building,
+                    "result": result,
+                    "url": build_url,
+                    "number": build_data.get("number"),
+                    "duration": build_data.get("duration"),
+                    "timestamp": build_data.get("timestamp")
+                }
+                
+                logger.info(f"Build status: {status_info}")
+                return True, status_info, ""
+                
+        except Exception as e:
+            error_msg = f"Failed to get build status: {str(e)}"
+            logger.error(error_msg)
             return False, {}, error_msg

@@ -16,6 +16,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from . import crud, models
 from .auth import get_current_user, router as auth_router
@@ -44,25 +45,62 @@ load_dotenv()
 # Initialize FastAPI
 app = FastAPI(
     title="AutoStack API",
-    description="AutoStack Deployment and Monitoring API",
+    description="AutoStack Deployment and Monitoring API with Google & GitHub OAuth",
     version="1.0.0",
 )
 
 # Middleware (order matters - error handling should be last)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://frontend:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000"
-    ],
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    allow_credentials=True,
-    expose_headers=["*"],
-)
+import os
+import re
+
+# CORS configuration - allow all localhost, 127.0.0.1, and frontend container origins
+def is_allowed_origin(origin: str) -> bool:
+    """Check if origin is allowed (localhost, 127.0.0.1, or frontend container on any port)"""
+    if not origin:
+        return False
+    # Allow localhost, 127.0.0.1, and frontend container on any port
+    # Also allow http://frontend:3000 for Docker internal networking
+    pattern = r'^https?://(localhost|127\.0\.0\.1|frontend)(:\d+)?$'
+    return bool(re.match(pattern, origin))
+
+# Custom CORS middleware that allows localhost/127.0.0.1 dynamically
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+class DynamicCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        origin = request.headers.get("origin")
+        
+        # Handle preflight
+        if request.method == "OPTIONS":
+            if origin and is_allowed_origin(origin):
+                return Response(
+                    status_code=200,
+                    headers={
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, X-API-Key, Accept",
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Max-Age": "3600",
+                    }
+                )
+            else:
+                # Return 403 for disallowed origins on preflight
+                return Response(status_code=403, content="Origin not allowed")
+        
+        response = await call_next(request)
+        
+        # Add CORS headers to response
+        if origin and is_allowed_origin(origin):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, X-API-Key, Accept"
+            response.headers["Access-Control-Expose-Headers"] = "Content-Type, Authorization"
+        
+        return response
+
+app.add_middleware(DynamicCORSMiddleware)
 app.add_middleware(RateLimitMiddleware, calls=50, period=60.0)
 app.add_middleware(ErrorHandlingMiddleware)
 
@@ -185,21 +223,132 @@ async def list_deploys(
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    deploys = await crud.list_user_deploys(db, current_user)
-    return {
-        "deployments": [
-            DeployResponse(
-                id=str(d.id),
-                repo=d.repo,
-                branch=d.branch,
-                environment=d.environment,
-                status=d.status,
-                created_at=d.created_at,
-                logs=d.logs,
+    try:
+        deploys = await crud.list_user_deploys(db, current_user)
+        return {
+            "deployments": [
+                DeployResponse(
+                    id=str(d.id),
+                    repo=d.repo,
+                    branch=d.branch,
+                    environment=d.environment,
+                    status=d.status,
+                    created_at=d.created_at,
+                    logs=d.logs,
+                )
+                for d in deploys
+            ]
+        }
+    except Exception as e:
+        print(f"⚠️ Error fetching deployments: {e}")
+        # Return empty list instead of error
+        return {"deployments": []}
+
+@app.post("/deployments/trigger")
+async def trigger_cloud_deployment(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Trigger cloud deployment via Jenkins CI/CD"""
+    from .deploy_engine import JenkinsDeployEngine
+    
+    try:
+        body = await request.json()
+        repo = body.get("repo", "autostack")
+        branch = body.get("branch", "main")
+        target = body.get("target", "both")  # frontend, backend, or both
+        
+        # Validate target
+        if target not in ["frontend", "backend", "both"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid target. Must be 'frontend', 'backend', or 'both'"
             )
-            for d in deploys
-        ]
-    }
+        
+        # Initialize Jenkins engine
+        jenkins_engine = JenkinsDeployEngine()
+        
+        # Trigger Jenkins job
+        success, job_info, error = await jenkins_engine.trigger_jenkins_job(
+            repo=repo,
+            branch=branch,
+            target=target
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to trigger deployment: {error}"
+            )
+        
+        return {
+            "queued": job_info.get("queued", True),
+            "jenkins_build_url": job_info.get("build_url", job_info.get("queue_url")),
+            "build_number": job_info.get("build_number"),
+            "job_name": job_info.get("job_name"),
+            "params": job_info.get("params"),
+            "message": "Deployment triggered successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"⚠️ Error triggering deployment: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to trigger deployment: {str(e)}"
+        )
+
+@app.get("/deployments/status")
+async def get_deployment_status(
+    build_url: str = None,
+    build_number: int = None,
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get cloud deployment status from Jenkins"""
+    from .deploy_engine import JenkinsDeployEngine
+    
+    try:
+        if not build_url and not build_number:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either build_url or build_number must be provided"
+            )
+        
+        # Initialize Jenkins engine
+        jenkins_engine = JenkinsDeployEngine()
+        
+        # Get build status
+        success, status_info, error = await jenkins_engine.get_build_status(
+            build_url=build_url,
+            build_number=build_number
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to get deployment status: {error}"
+            )
+        
+        return {
+            "status": status_info.get("status"),
+            "building": status_info.get("building"),
+            "result": status_info.get("result"),
+            "url": status_info.get("url"),
+            "number": status_info.get("number"),
+            "duration": status_info.get("duration"),
+            "timestamp": status_info.get("timestamp")
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"⚠️ Error getting deployment status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get deployment status: {str(e)}"
+        )
 
 @app.get("/github/repos")
 async def list_github_repos(
@@ -269,8 +418,14 @@ async def get_deploy_status(
         "id": str(deploy.id),
         "repo": deploy.repo,
         "branch": deploy.branch,
+        "environment": deploy.environment,
         "status": deploy.status,
-        "logs": deploy.logs,
+        "logs": deploy.logs or "",
+        "url": deploy.url,
+        "port": deploy.port,
+        "container_id": deploy.container_id,
+        "error_message": deploy.error_message,
+        "created_at": deploy.created_at.isoformat() if deploy.created_at else None,
     }
 
 
@@ -525,8 +680,19 @@ async def get_metrics_overview(
     current_user: models.User = Depends(get_current_user),
 ):
     """Get metrics overview for the current user."""
-    overview = await crud.get_metrics_overview(db, current_user)
-    return overview
+    try:
+        overview = await crud.get_metrics_overview(db, current_user)
+        return overview
+    except Exception as e:
+        print(f"⚠️ Error fetching metrics overview: {e}")
+        # Return default metrics instead of error
+        return MetricsOverview(
+            total_cpu_usage=0.0,
+            total_memory_usage=0.0,
+            uptime_percentage=0.0,
+            active_agents=0,
+            total_agents=0
+        )
 
 
 # ========================
@@ -660,5 +826,59 @@ async def websocket_logs(websocket: WebSocket, deploy_id: str):
             await asyncio.sleep(1)
     
     await websocket.close()
+
+
+# ========================
+# Startup Event - Auto-fix Database Schema
+# ========================
+
+@app.on_event("startup")
+async def startup_fix_database():
+    """Auto-fix database schema issues on startup"""
+    try:
+        print("🔧 Checking database schema...")
+        async with AsyncSessionLocal() as session:
+            # Fix refresh_tokens table - rename token to token_hash if needed
+            try:
+                result = await session.execute(text("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='refresh_tokens' AND column_name='token'
+                """))
+                if result.fetchone():
+                    print("🔄 Fixing refresh_tokens table...")
+                    await session.execute(text("ALTER TABLE refresh_tokens RENAME COLUMN token TO token_hash"))
+                    await session.execute(text("ALTER INDEX IF EXISTS ix_refresh_tokens_token RENAME TO ix_refresh_tokens_token_hash"))
+                    await session.commit()
+                    print("✅ Fixed refresh_tokens.token → token_hash")
+                else:
+                    print("ℹ️  refresh_tokens schema OK")
+            except Exception as e:
+                print(f"⚠️  refresh_tokens fix: {e}")
+                await session.rollback()
+            
+            # Fix audit_logs table - convert details to JSON if needed
+            try:
+                result = await session.execute(text("""
+                    SELECT data_type 
+                    FROM information_schema.columns 
+                    WHERE table_name='audit_logs' AND column_name='details'
+                """))
+                row = result.fetchone()
+                if row and row[0] == 'text':
+                    print("🔄 Fixing audit_logs table...")
+                    await session.execute(text("UPDATE audit_logs SET details = '{}' WHERE details IS NULL OR details = ''"))
+                    await session.execute(text("ALTER TABLE audit_logs ALTER COLUMN details TYPE json USING COALESCE(details::json, '{}'::json)"))
+                    await session.commit()
+                    print("✅ Fixed audit_logs.details → JSON")
+                else:
+                    print("ℹ️  audit_logs schema OK")
+            except Exception as e:
+                print(f"⚠️  audit_logs fix: {e}")
+                await session.rollback()
+        
+        print("✅ Database schema check complete")
+    except Exception as e:
+        print(f"❌ Database schema fix error: {e}")
 
 

@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import api from "@/lib/api"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
+import { toast } from "sonner"
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" })
@@ -12,6 +13,17 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
+  
+  // Check if already authenticated
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem("access_token")
+      if (token) {
+        // User is already logged in, redirect to dashboard
+        router.push("/dashboard")
+      }
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,10 +60,14 @@ export default function LoginPage() {
       ;(globalThis as any)._AS_ACCESS_TOKEN = accessToken
       ;(globalThis as any)._AS_REFRESH_TOKEN = refreshToken
       
+      // Get user name from response if available
+      const userName = res.data.email?.split('@')[0] || "there"
+      toast.success(`Welcome back, ${userName}.`)
+      
       setMessage("Login successful! Redirecting...")
       setTimeout(() => {
         router.push("/dashboard")
-      }, 1000)
+      }, 500)
     } catch (err: any) {
       console.error("Login error:", err)
       console.error("Error details:", {
@@ -61,27 +77,47 @@ export default function LoginPage() {
         status: err.response?.status
       })
       
+      let errorMessage = "Login failed. Please try again."
+      
       if (err.response?.status === 401) {
-        setMessage("Invalid email or password. Please try again.")
+        errorMessage = "Invalid email or password. Please try again."
       } else if (err.response?.status === 429) {
-        setMessage("Too many login attempts. Please wait a moment and try again.")
+        errorMessage = "Too many login attempts. Please wait a moment and try again."
       } else if (err.response?.data?.detail) {
-        setMessage(err.response.data.detail)
+        errorMessage = err.response.data.detail
       } else if (err.code === "ERR_NETWORK" || err.code === "ECONNREFUSED") {
-        setMessage("Cannot connect to server. Please check if the backend is running.")
+        errorMessage = "Cannot connect to server. Please check if the backend is running."
       } else if (err.message) {
-        setMessage(err.message)
-      } else {
-        setMessage("Login failed. Please try again.")
+        errorMessage = err.message
       }
+      
+      setMessage(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
   const handleGoogleLogin = async () => {
-    // This will be implemented with Google OAuth
-    setMessage("Google OAuth coming soon!")
+    try {
+      setLoading(true)
+      setMessage("")
+      
+      // Get Google OAuth URL from backend
+      const res = await api.get("/auth/google")
+      const authUrl = res.data.url
+      
+      // Redirect to Google OAuth
+      window.location.href = authUrl
+    } catch (err: any) {
+      console.error("Google OAuth error:", err)
+      if (err.response?.data?.detail) {
+        setMessage(err.response.data.detail)
+      } else {
+        setMessage("Google OAuth is not configured. Please contact support.")
+      }
+      setLoading(false)
+    }
   }
 
   return (

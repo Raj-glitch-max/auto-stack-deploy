@@ -3,8 +3,17 @@
   "/_not-found/page": "app/_not-found/page.js",
   "/agents/page": "app/agents/page.js",
   "/alerts/page": "app/alerts/page.js",
+  "/auth/callback/page": "app/auth/callback/page.js",
   "/dashboard/page": "app/dashboard/page.js",
+  "/deploy/page": "app/deploy/page.js",
   "/deployments/page": "app/deployments/page.js",
+  "/docs/page": "app/docs/page.js",
+  "/forgot-password/page": "app/forgot-password/page.js",
+  "/how-it-works/page": "app/how-it-works/page.js",
+  "/login/page": "app/login/page.js",
   "/page": "app/page.js",
-  "/settings/page": "app/settings/page.js"
+  "/pricing/page": "app/pricing/page.js",
+  "/profile/page": "app/profile/page.js",
+  "/settings/page": "app/settings/page.js",
+  "/signup/page": "app/signup/page.js"
 }

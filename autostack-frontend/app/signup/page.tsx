@@ -57,8 +57,25 @@ export default function SignupPage() {
   }
 
   const handleGoogleSignup = async () => {
-    // This will be implemented with Google OAuth
-    setMessage("Google OAuth coming soon!")
+    try {
+      setLoading(true)
+      setMessage("")
+      
+      // Get Google OAuth URL from backend
+      const res = await api.get("/auth/google")
+      const authUrl = res.data.url
+      
+      // Redirect to Google OAuth
+      window.location.href = authUrl
+    } catch (err: any) {
+      console.error("Google OAuth error:", err)
+      if (err.response?.data?.detail) {
+        setMessage(err.response.data.detail)
+      } else {
+        setMessage("Google OAuth is not configured. Please contact support.")
+      }
+      setLoading(false)
+    }
   }
 
   return (

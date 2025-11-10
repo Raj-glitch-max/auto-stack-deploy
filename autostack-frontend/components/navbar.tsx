@@ -1,22 +1,119 @@
 "use client"
 
 import Link from "next/link"
-import { motion } from "framer-motion"
-import { useState } from "react"
-import { useAuth } from "./AuthProvider"
+import { motion, AnimatePresence } from "framer-motion"
+import { useState, useEffect, useRef } from "react"
+import { useRouter, usePathname } from "next/navigation"
+import api from "@/lib/api"
+import { AccountMenu } from "@/components/account/account-menu"
+import { NotificationsCenter } from "@/components/notifications/notifications-center"
+import { Bell } from "lucide-react"
+
+interface User {
+  id: string
+  email: string
+  created_at: string
+  github_username?: string
+}
 
 export function Navbar() {
-  const { user, logout } = useAuth()
+  const router = useRouter()
+  const pathname = usePathname()
+  const [user, setUser] = useState<User | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isNavigating, setIsNavigating] = useState(false)
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  // Fetch user data from /me endpoint
+  useEffect(() => {
+    const fetchUser = async () => {
+      if (typeof window === 'undefined') return
+      const token = localStorage.getItem("access_token")
+      if (!token) {
+        setIsLoading(false)
+        return
+      }
+      
+      try {
+        const res = await api.get("/me")
+        setUser(res.data)
+      } catch (err) {
+        console.error("Error fetching user:", err)
+        // Token might be invalid, clear it
+        localStorage.removeItem("access_token")
+        localStorage.removeItem("refresh_token")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    fetchUser()
+  }, [])
+
+  // Fetch unread notifications count
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      if (!user) return
+      try {
+        const res = await api.get("/alerts?resolved=false")
+        const alerts = res.data || []
+        setUnreadCount(alerts.length)
+      } catch (err) {
+        console.error("Error fetching unread count:", err)
+      }
+    }
+
+    if (user) {
+      fetchUnreadCount()
+      // Refresh every 30 seconds
+      const interval = setInterval(fetchUnreadCount, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [user])
+
+  // Route change loading indicator
+  useEffect(() => {
+    setIsNavigating(true)
+    
+    // Hide loading indicator after a short delay
+    const timer = setTimeout(() => {
+      setIsNavigating(false)
+    }, 200)
+
+    return () => clearTimeout(timer)
+  }, [pathname])
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token")
+    localStorage.removeItem("refresh_token")
+    ;(globalThis as any)._AS_ACCESS_TOKEN = null
+    ;(globalThis as any)._AS_REFRESH_TOKEN = null
+    setUser(null)
+    router.push("/login")
+  }
 
   return (
-    <motion.nav
-      initial={{ y: -50, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.6 }}
-      className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-xl border-b border-white/10"
-    >
-      <div className="max-w-7xl mx-auto flex items-center justify-between h-16 px-6">
+    <>
+      {/* Route change loading indicator */}
+      {isNavigating && (
+        <div className="fixed top-0 left-0 right-0 h-1 bg-purple-600/20 z-[60]">
+          <motion.div
+            className="h-full bg-gradient-to-r from-purple-600 to-pink-500"
+            initial={{ width: "0%" }}
+            animate={{ width: "100%" }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+          />
+        </div>
+      )}
+      <motion.nav
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6 }}
+        className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-xl border-b border-white/10"
+      >
+        <div className="max-w-7xl mx-auto flex items-center justify-between h-16 px-6">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 group">
           <div className="relative">
@@ -39,29 +136,27 @@ export function Navbar() {
           <Link href="/how-it-works" className="text-gray-400 hover:text-white transition-colors">How It Works</Link>
           <Link href="/pricing" className="text-gray-400 hover:text-white transition-colors">Pricing</Link>
           <Link href="/docs" className="text-gray-400 hover:text-white transition-colors">Docs</Link>
+          <Link href="/changelog" className="text-gray-400 hover:text-white transition-colors">Changelog</Link>
+          <Link href="/billing" className="text-gray-400 hover:text-white transition-colors">Billing</Link>
         </div>
 
         {/* Actions */}
         <div className="flex items-center gap-4">
-          {user ? (
-            <div className="flex items-center gap-4">
-              <Link
-                href="/dashboard"
-                className="hidden sm:flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
-              >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-xs font-medium text-white">
-                  {user.email?.charAt(0).toUpperCase()}
-                </div>
-                <span>Dashboard</span>
-              </Link>
+          {!isLoading && user ? (
+            <>
               <button
-                onClick={logout}
-                className="px-4 py-2 rounded-md text-sm font-medium border border-white/20 text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+                onClick={() => setIsNotificationsOpen(true)}
+                className="relative p-2 text-gray-400 hover:text-white transition-colors"
+                aria-label="Notifications"
               >
-                Sign Out
+                <Bell size={20} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                )}
               </button>
-            </div>
-          ) : (
+              <AccountMenu />
+            </>
+          ) : !isLoading ? (
             <div className="flex items-center gap-3">
               <Link 
                 href="/login" 
@@ -71,12 +166,22 @@ export function Navbar() {
               </Link>
               <Link
                 href="/signup"
+                onClick={(e) => {
+                  // If user is authenticated, redirect to /deploy instead
+                  if (typeof window !== 'undefined') {
+                    const token = localStorage.getItem("access_token")
+                    if (token) {
+                      e.preventDefault()
+                      router.push("/deploy")
+                    }
+                  }
+                }}
                 className="px-4 py-2 rounded-md text-sm font-medium bg-gradient-to-r from-purple-600 to-pink-500 hover:opacity-90 transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
               >
                 Get Started
               </Link>
             </div>
-          )}
+          ) : null}
 
           {/* Mobile Menu Button */}
           <button
@@ -110,9 +215,12 @@ export function Navbar() {
             {user ? (
               <>
                 <Link href="/dashboard" className="block text-gray-400 hover:text-white transition-colors">Dashboard</Link>
+                <Link href="/deploy" className="block text-gray-400 hover:text-white transition-colors">Deploy</Link>
+                <Link href="/profile" className="block text-gray-400 hover:text-white transition-colors">Profile</Link>
+                <Link href="/settings" className="block text-gray-400 hover:text-white transition-colors">Settings</Link>
                 <button
-                  onClick={logout}
-                  className="block w-full text-left text-gray-400 hover:text-white transition-colors"
+                  onClick={handleLogout}
+                  className="block w-full text-left text-red-400 hover:text-red-300 transition-colors"
                 >
                   Sign Out
                 </button>
@@ -123,7 +231,12 @@ export function Navbar() {
           </div>
         </motion.div>
       )}
+      <NotificationsCenter
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+      />
     </motion.nav>
+    </>
   )
 }
 

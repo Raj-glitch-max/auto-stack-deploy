@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON
 from sqlalchemy.orm import relationship
 
 from .db import Base
@@ -17,9 +17,14 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
-    # GitHub OAuth fields
+    # OAuth fields
     github_token = Column(String, nullable=True)
     github_username = Column(String, nullable=True)
+    google_id = Column(String, nullable=True, unique=True, index=True)
+    google_email = Column(String, nullable=True)
+    name = Column(String, nullable=True)
+    avatar_url = Column(String, nullable=True)
+    email_verified = Column(Boolean, default=False, nullable=False)
 
     deployments = relationship("Deploy", back_populates="user", cascade="all, delete-orphan")
     agents = relationship("Agent", back_populates="user", cascade="all, delete-orphan")
@@ -103,7 +108,7 @@ class AuditLog(Base):
     action = Column(String, nullable=False)  # login, deploy, alert, etc.
     resource_type = Column(String, nullable=True)  # deployment, alert, agent, etc.
     resource_id = Column(String, nullable=True)
-    details = Column(Text, nullable=True)
+    details = Column(JSON, nullable=True)  # Changed from Text to JSON to match migration
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

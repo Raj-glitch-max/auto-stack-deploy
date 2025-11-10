@@ -27,6 +27,11 @@ class UserLogin(BaseModel):
 class UserResponse(UserBase):
     id: str
     created_at: datetime
+    github_username: Optional[str] = None
+    google_id: Optional[str] = None
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    email_verified: bool = False
 
 
 # ========================

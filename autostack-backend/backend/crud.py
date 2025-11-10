@@ -247,10 +247,11 @@ async def get_metrics_overview(db: AsyncSession, user: models.User) -> dict:
 
     # Calculate uptime percentage (agents that sent heartbeat in last 5 minutes)
     five_min_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
+    five_min_ago_naive = five_min_ago.replace(tzinfo=None)  # Make naive for comparison
     online_count = sum(
         1
         for a in agents
-        if a.last_heartbeat and a.last_heartbeat > five_min_ago
+        if a.last_heartbeat and a.last_heartbeat > five_min_ago_naive
     )
     uptime_percentage = (online_count / total_agents * 100) if total_agents > 0 else 0.0
 
@@ -275,16 +276,32 @@ async def create_audit_log(
     action: str,
     resource_type: str | None = None,
     resource_id: str | None = None,
-    details: str | None = None,
+    details: str | dict | None = None,
     ip_address: str | None = None,
     user_agent: str | None = None,
 ) -> models.AuditLog:
+    """Create an audit log entry.
+    
+    Args:
+        details: Can be a string, dict, or None. If string, it will be converted to {"message": string}.
+                 If None, defaults to empty dict {}.
+    """
+    # Convert details to proper JSON format
+    if details is None:
+        json_details = {}
+    elif isinstance(details, str):
+        json_details = {"message": details}
+    elif isinstance(details, dict):
+        json_details = details
+    else:
+        json_details = {"value": str(details)}
+    
     audit_log = models.AuditLog(
         user_id=user.id,
         action=action,
         resource_type=resource_type,
         resource_id=resource_id,
-        details=details,
+        details=json_details,
         ip_address=ip_address,
         user_agent=user_agent,
     )

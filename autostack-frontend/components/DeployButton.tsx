@@ -20,29 +20,28 @@ interface DeployButtonProps {
 export function DeployButton({ repo, branch, onDeployStart }: DeployButtonProps) {
   const [deploying, setDeploying] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
 
   const handleDeploy = async () => {
-    if (!repo) return
+    if (!repo) {
+      setError("Please select a repository first")
+      return
+    }
 
     try {
       setDeploying(true)
       setError(null)
-      setSuccess(false)
 
       const response = await api.post("/deploy", {
         repo: repo.clone_url,
         branch: branch || repo.default_branch,
-        environment: "production"
+        environment: "production",
       })
 
-      setSuccess(true)
-      if (onDeployStart) {
-        onDeployStart(response.data.deploy_id)
-      }
+      const deployId = response.data.deploy_id
 
-      // Reset success message after 3 seconds
-      setTimeout(() => setSuccess(false), 3000)
+      if (onDeployStart) {
+        onDeployStart(deployId)
+      }
     } catch (err: any) {
       console.error("Deploy error:", err)
       setError(err.response?.data?.detail || "Failed to start deployment")
@@ -55,25 +54,10 @@ export function DeployButton({ repo, branch, onDeployStart }: DeployButtonProps)
     return (
       <button
         disabled
-        className="w-full bg-gray-700 text-gray-400 rounded-lg px-6 py-3 font-medium cursor-not-allowed"
+        className="w-full bg-gray-700/50 text-gray-400 rounded-lg px-6 py-3 font-medium cursor-not-allowed border border-gray-700/50"
       >
         Select a repository to deploy
       </button>
-    )
-  }
-
-  if (success) {
-    return (
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="w-full bg-green-500/10 border border-green-500/20 rounded-lg px-6 py-3 flex items-center justify-center gap-2"
-      >
-        <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-        </svg>
-        <span className="text-green-400 font-medium">Deployment started!</span>
-      </motion.div>
     )
   }
 

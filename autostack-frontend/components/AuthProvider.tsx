@@ -10,21 +10,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function loadMe() {
-    // COMPLETELY DISABLED - Don't load user automatically
-    // Only load tokens from localStorage, don't make API calls
-    setLoading(false);
-    setUser(null);
-    
-    // Just restore tokens if they exist
-    if (typeof window !== 'undefined') {
-      const storedToken = localStorage.getItem("access_token");
-      const storedRefresh = localStorage.getItem("refresh_token");
-      if (storedToken) {
-        (globalThis as any)._AS_ACCESS_TOKEN = storedToken;
+    try {
+      // Restore tokens from localStorage
+      if (typeof window !== 'undefined') {
+        const storedToken = localStorage.getItem("access_token");
+        const storedRefresh = localStorage.getItem("refresh_token");
+        
+        if (storedToken && storedRefresh) {
+          (globalThis as any)._AS_ACCESS_TOKEN = storedToken;
+          (globalThis as any)._AS_REFRESH_TOKEN = storedRefresh;
+          
+          // Try to fetch user data
+          try {
+            const me = await api.get("/me");
+            setUser(me.data);
+          } catch (error: any) {
+            // If token is invalid, clear everything
+            console.log("Failed to load user, clearing tokens");
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("refresh_token");
+            (globalThis as any)._AS_ACCESS_TOKEN = null;
+            (globalThis as any)._AS_REFRESH_TOKEN = null;
+          }
+        }
       }
-      if (storedRefresh) {
-        (globalThis as any)._AS_REFRESH_TOKEN = storedRefresh;
-      }
+    } catch (error) {
+      console.error("Error loading user:", error);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -51,8 +64,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return me.data;
   }
 
-  async function signup(name: string, email: string, password: string) {
-    const res = await api.post("/signup", { name, email, password });
+  async function signup(email: string, password: string) {
+    const res = await api.post("/signup", { email, password });
     return res.data;
   }
 
@@ -68,11 +81,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
+      localStorage.removeItem("user");
     }
     setUser(null);
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, signup, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, setUser, loading, login, signup, logout }}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => useContext(AuthContext);

@@ -1,17 +1,13 @@
-[00:00:00.582] Server  LOG      ✓ Ready in 380ms
-[00:00:02.750] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:00:31.232] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:07:26.513] Server  LOG      ✓ Compiled in 35ms
-[00:20:45.968] Server  LOG      ✓ Compiled in 12ms
-[00:25:16.077] Server  ERROR    ⨯ ReferenceError: TransitionWrapper is not defined
-[00:25:16.084] Server  LOG      ✓ Compiled in 191ms
-[00:25:16.108] Server  ERROR    ⨯ ReferenceError: TransitionWrapper is not defined
-[00:25:16.208] Server  ERROR    ⨯ ReferenceError: TransitionWrapper is not defined
-[00:25:16.250] Server  ERROR    ⨯ ReferenceError: TransitionWrapper is not defined
-[00:25:16.345] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:25:16.548] Browser ERROR   uncaughtError: ReferenceError: TransitionWrapper is not defined
-[00:27:37.322] Server  WARN     ⚠ Fast Refresh had to perform a full reload due to a runtime error.
-[00:27:37.343] Server  ERROR    ⨯ ReferenceError: TransitionWrapper is not defined
-[00:27:37.362] Server  LOG      ✓ Compiled in 26ms
-[00:27:37.444] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:27:38.546] Browser ERROR   uncaughtError: ReferenceError: TransitionWrapper is not defined
+[00:00:01.714] Server  LOG     
+[00:00:01.715] Server  LOG        We detected TypeScript in your project and reconfigured your tsconfig.json file for you.
+[00:00:01.716] Server  LOG        The following suggested values were added to your tsconfig.json. These values can be changed to fit your project's needs:
+
+[00:00:01.717] Server  LOG        	- include was updated to add '.next\dev/types/**/*.ts'
+[00:00:01.717] Server  LOG        	- include was updated to add '.next\dev/types/**/*.ts'
+[00:00:01.718] Server  LOG     
+[00:00:02.084] Server  LOG      ✓ Ready in 1457ms
+[00:00:36.528] Server  LOG      ○ Compiling / ...
+[00:00:40.424] Server  WARN     ⚠ Cross origin request detected from 127.0.0.1 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+[00:00:40.479] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:55.042] Browser ERROR   Google OAuth error: {"code":"ERR_NETWORK","config":{"adapter":["xhr","http","fetch"],"allowAbsoluteUrls":true,"baseURL":"http://localhost:8000","env":{},"headers":{"Accept":"application/json","Content-Type":"application/json"},"maxBodyLength":-1,"maxContentLength":-1,"method":"get","timeout":15000,"transformRequest":[null],"transformResponse":[null],"transitional":{"clarifyTimeoutError":false,"forcedJSONParsing":true,"silentJSONParsing":true},"url":"/auth/google","withCredentials":true,"xsrfCookieName":"XSRF-TOKEN","xsrfHeaderName":"X-XSRF-TOKEN"},"message":"Network Error","name":"AxiosError","stack":"AxiosError: Network Error\n    at XMLHttpRequest.handleError (http://127.0.0.1:63561/_next/static/chunks/node_modules_c050eb08._.js:4267:25)\n    at Axios.request (http://127.0.0.1:63561/_next/static/chunks/node_modules_c050eb08._.js:5025:49)\n    at async handleGoogleSignup (http://127.0.0.1:63561/_next/static/chunks/_7ab6a6d6._.js:80:25)"}
