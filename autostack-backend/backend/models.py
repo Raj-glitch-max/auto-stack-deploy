@@ -343,3 +343,225 @@ class DeploymentLog(Base):
 
     def __repr__(self):
         return f"<DeploymentLog {self.log_type} at {self.timestamp}>"
+
+
+# ===== COST TRACKING MODELS =====
+
+class CostSnapshot(Base):
+    """Real-time cost tracking snapshots"""
+    __tablename__ = "cost_snapshots"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Cost breakdown
+    total_cost = Column(Float, nullable=False, default=0.0)
+    compute_cost = Column(Float, nullable=False, default=0.0)
+    storage_cost = Column(Float, nullable=False, default=0.0)
+    bandwidth_cost = Column(Float, nullable=False, default=0.0)
+    database_cost = Column(Float, nullable=False, default=0.0)
+    other_cost = Column(Float, nullable=False, default=0.0)
+    
+    # Cloud provider info
+    cloud_provider = Column(String(50), nullable=False)
+    region = Column(String(100), nullable=True)
+    
+    # Detailed breakdown
+    breakdown = Column(JSON, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    project = relationship("Project")
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<CostSnapshot ${self.total_cost} at {self.timestamp}>"
+
+
+class CostPrediction(Base):
+    """AI-powered cost predictions"""
+    __tablename__ = "cost_predictions"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
+    # Predictions
+    predicted_daily_cost = Column(Float, nullable=False)
+    predicted_monthly_cost = Column(Float, nullable=False)
+    predicted_yearly_cost = Column(Float, nullable=False)
+    
+    # Confidence and model info
+    confidence_score = Column(Float, nullable=False)
+    model_version = Column(String(50), nullable=False)
+    prediction_date = Column(DateTime, nullable=False)
+    
+    # Historical data used
+    days_of_data_used = Column(Integer, nullable=False)
+    prediction_metadata = Column(JSON, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    project = relationship("Project")
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<CostPrediction ${self.predicted_monthly_cost}/month>"
+
+
+class BudgetAlert(Base):
+    """User-defined budget limits and alerts"""
+    __tablename__ = "budget_alerts"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
+    # Budget settings
+    budget_limit = Column(Float, nullable=False)
+    budget_period = Column(String(20), nullable=False, default='monthly')
+    alert_threshold = Column(Float, nullable=False, default=0.80)
+    
+    # Current status
+    current_spend = Column(Float, nullable=False, default=0.0)
+    is_exceeded = Column(Boolean, nullable=False, default=False)
+    last_alert_sent = Column(DateTime, nullable=True)
+    
+    # Actions
+    auto_scale_down = Column(Boolean, nullable=False, default=False)
+    auto_pause = Column(Boolean, nullable=False, default=False)
+    notification_channels = Column(JSON, nullable=True)
+    
+    # Status
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    project = relationship("Project")
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<BudgetAlert ${self.budget_limit} {self.budget_period}>"
+
+
+class CostRecommendation(Base):
+    """AI-generated cost optimization recommendations"""
+    __tablename__ = "cost_recommendations"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
+    # Recommendation details
+    recommendation_type = Column(String(100), nullable=False)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    impact = Column(String(20), nullable=False)
+    
+    # Cost savings
+    estimated_monthly_savings = Column(Float, nullable=False)
+    estimated_yearly_savings = Column(Float, nullable=False)
+    savings_percentage = Column(Float, nullable=False)
+    
+    # Implementation
+    implementation_effort = Column(String(20), nullable=False)
+    implementation_steps = Column(JSON, nullable=True)
+    can_auto_apply = Column(Boolean, nullable=False, default=False)
+    
+    # Status
+    status = Column(String(50), nullable=False, default='pending')
+    applied_at = Column(DateTime, nullable=True)
+    dismissed_at = Column(DateTime, nullable=True)
+    
+    # Metadata
+    confidence_score = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    project = relationship("Project")
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<CostRecommendation {self.title} - Save ${self.estimated_monthly_savings}/month>"
+
+
+class CostAnomaly(Base):
+    """Unusual cost spikes and anomalies"""
+    __tablename__ = "cost_anomalies"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
+    # Anomaly details
+    anomaly_type = Column(String(100), nullable=False)
+    severity = Column(String(20), nullable=False)
+    description = Column(Text, nullable=False)
+    
+    # Cost impact
+    expected_cost = Column(Float, nullable=False)
+    actual_cost = Column(Float, nullable=False)
+    cost_difference = Column(Float, nullable=False)
+    percentage_increase = Column(Float, nullable=False)
+    
+    # Detection
+    detected_at = Column(DateTime, nullable=False)
+    detection_method = Column(String(100), nullable=False)
+    
+    # Resolution
+    status = Column(String(50), nullable=False, default='open')
+    root_cause = Column(Text, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+    
+    # Metadata
+    metadata = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    project = relationship("Project")
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<CostAnomaly {self.severity} - ${self.cost_difference} increase>"
+
+
+class CloudCredential(Base):
+    """Secure storage for cloud provider credentials"""
+    __tablename__ = "cloud_credentials"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
+    # Provider info
+    cloud_provider = Column(String(50), nullable=False)
+    credential_name = Column(String(255), nullable=False)
+    
+    # Encrypted credentials
+    encrypted_credentials = Column(Text, nullable=False)
+    encryption_key_id = Column(String(255), nullable=False)
+    
+    # Permissions
+    has_cost_access = Column(Boolean, nullable=False, default=False)
+    has_deployment_access = Column(Boolean, nullable=False, default=False)
+    permissions = Column(JSON, nullable=True)
+    
+    # Status
+    is_active = Column(Boolean, nullable=False, default=True)
+    last_validated = Column(DateTime, nullable=True)
+    validation_status = Column(String(50), nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<CloudCredential {self.cloud_provider} - {self.credential_name}>"
