@@ -28,6 +28,8 @@ spec:
         service:
           type: LoadBalancer
           port: 3000
+          annotations:
+            service.beta.kubernetes.io/aws-load-balancer-type: "external"
         
         ingress:
           enabled: false
