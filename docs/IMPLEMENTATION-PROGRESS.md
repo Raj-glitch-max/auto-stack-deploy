@@ -164,7 +164,9 @@
 - **Audit Report:** 1 credit
 - **UX Wireframes:** 1 credit
 - **Auth Hardening (Batch 1):** 1 credit
-- **Remaining:** 8 credits
+- **OAuth + Terraform (Batch 2):** 2 credits
+- **Used:** 5 credits
+- **Remaining:** 6 credits
 
 ---
 
