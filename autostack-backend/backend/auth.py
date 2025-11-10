@@ -235,7 +235,9 @@ async def refresh_token(
 
 @router.get("/auth/github")
 async def github_login():
-    """Redirect to GitHub OAuth"""
+    """Redirect to GitHub OAuth with CSRF protection"""
+    from .utils.oauth_state import oauth_state_manager
+    
     github_client_id = os.getenv("GITHUB_CLIENT_ID")
     github_callback_url = os.getenv("GITHUB_CALLBACK_URL", "http://localhost:8000/auth/github/callback")
     
@@ -250,27 +252,45 @@ async def github_login():
             detail="GitHub OAuth not configured. Please set GITHUB_CLIENT_ID in environment"
         )
     
+    # Generate CSRF protection state token
+    state = oauth_state_manager.generate_state("github")
+    
     github_auth_url = (
         f"https://github.com/login/oauth/authorize"
         f"?client_id={github_client_id}"
         f"&redirect_uri={github_callback_url}"
-        f"&scope=repo,user:email"
+        f"&scope=repo:status,repo_deployment,user:email"
+        f"&state={state}"
     )
     
-    print("GitHub OAuth URL generated successfully")
+    print("GitHub OAuth URL generated successfully with state token")
     return {"url": github_auth_url}
 
 
 @router.get("/auth/github/callback")
-async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
-    """Handle GitHub OAuth callback with comprehensive error handling"""
+async def github_callback(code: str, state: str, db: AsyncSession = Depends(get_db)):
+    """Handle GitHub OAuth callback with comprehensive error handling and CSRF protection"""
     import traceback
+    from .utils.oauth_state import oauth_state_manager
+    
+    # Validate state token (CSRF protection)
+    if not oauth_state_manager.validate_state(state, "github"):
+        print("ERROR: Invalid or expired OAuth state token")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "invalid_state",
+                "message": "Invalid or expired OAuth state. Please try logging in again.",
+                "action": "retry_login"
+            }
+        )
     
     github_client_id = os.getenv("GITHUB_CLIENT_ID")
     github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")
     github_callback_url = os.getenv("GITHUB_CALLBACK_URL", "http://localhost:8000/auth/github/callback")
     
     print(f"GitHub OAuth callback initiated with code: {code[:20]}...")
+    print("✅ State token validated successfully")
     
     if not github_client_id or not github_client_secret:
         print("ERROR: GitHub OAuth credentials not configured")
@@ -497,7 +517,9 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
 
 @router.get("/auth/google")
 async def google_login():
-    """Redirect to Google OAuth"""
+    """Redirect to Google OAuth with CSRF protection"""
+    from .utils.oauth_state import oauth_state_manager
+    
     google_client_id = os.getenv("GOOGLE_CLIENT_ID")
     google_callback_url = os.getenv("GOOGLE_CALLBACK_URL", "http://localhost:8000/auth/google/callback")
     
@@ -512,6 +534,9 @@ async def google_login():
             detail={"error": "not_configured", "message": "Google OAuth is not configured on this server. Please use email/password login."}
         )
     
+    # Generate CSRF protection state token
+    state = oauth_state_manager.generate_state("google")
+    
     # Build Google OAuth URL - redirect_uri must match exactly what's configured in Google Cloud Console
     from urllib.parse import urlencode
     params = {
@@ -520,26 +545,41 @@ async def google_login():
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "offline",
-        "prompt": "consent"
+        "prompt": "consent",
+        "state": state
     }
     google_auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
     
-    print("Google OAuth URL generated successfully")
+    print("Google OAuth URL generated successfully with state token")
     print(f"   Full URL: {google_auth_url[:100]}...")
     
     return {"url": google_auth_url}
 
 
 @router.get("/auth/google/callback")
-async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
-    """Handle Google OAuth callback with comprehensive error handling"""
+async def google_callback(code: str, state: str, db: AsyncSession = Depends(get_db)):
+    """Handle Google OAuth callback with comprehensive error handling and CSRF protection"""
     import traceback
+    from .utils.oauth_state import oauth_state_manager
+    
+    # Validate state token (CSRF protection)
+    if not oauth_state_manager.validate_state(state, "google"):
+        print("ERROR: Invalid or expired OAuth state token")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "invalid_state",
+                "message": "Invalid or expired OAuth state. Please try logging in again.",
+                "action": "retry_login"
+            }
+        )
     
     google_client_id = os.getenv("GOOGLE_CLIENT_ID")
     google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
     google_callback_url = os.getenv("GOOGLE_CALLBACK_URL", "http://localhost:8000/auth/google/callback")
     
     print(f"Google OAuth callback initiated with code: {code[:20]}...")
+    print("✅ State token validated successfully")
     print("Google OAuth Callback Configuration:")
     print(f"   Client ID: {google_client_id[:20] if google_client_id else 'NOT SET'}...")
     print(f"   Client Secret: {'SET' if google_client_secret else 'NOT SET'}")
