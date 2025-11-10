@@ -115,6 +115,10 @@ app.include_router(auth_router, prefix="", tags=["auth"])
 from .routers import projects_router
 app.include_router(projects_router, prefix="/api")
 
+# Mount Costs router (UNIQUE FEATURE #1!)
+from .routers.costs import router as costs_router
+app.include_router(costs_router, prefix="/api")
+
 # Initialize Deploy Engines
 deploy_engine = DeployEngine()  # Legacy local Docker deployment
 k8s_deploy_engine = K8sDeployEngine()  # New Kubernetes deployment for production
