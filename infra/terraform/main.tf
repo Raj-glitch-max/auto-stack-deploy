@@ -36,12 +36,15 @@ terraform {
 
 # -------------------- Provider Configuration --------------------
 provider "aws" {
-  region = var.region
+  region = "ap-south-1"
+
 
   default_tags {
     tags = var.tags
   }
 }
+
+
 
 # -------------------- Data Sources --------------------
 data "aws_caller_identity" "current" {}
