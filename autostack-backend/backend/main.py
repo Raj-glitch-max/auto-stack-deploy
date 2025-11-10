@@ -111,6 +111,10 @@ app.add_middleware(ErrorHandlingMiddleware)
 # Mount Auth router
 app.include_router(auth_router, prefix="", tags=["auth"])
 
+# Mount Projects router
+from .routers import projects_router
+app.include_router(projects_router, prefix="/api")
+
 # Initialize Deploy Engines
 deploy_engine = DeployEngine()  # Legacy local Docker deployment
 k8s_deploy_engine = K8sDeployEngine()  # New Kubernetes deployment for production
