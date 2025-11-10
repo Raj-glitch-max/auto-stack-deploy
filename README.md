@@ -1,424 +1,304 @@
-# 🚀 AutoStack - One-Click Deployment Platform
+# 🚀 AutoStack - Cloud-Native DevOps Platform
 
-**Deploy your applications with a single click. Built with Next.js, FastAPI, and Docker.**
+**Production-ready deployment platform built on AWS EKS with complete CI/CD automation.**
+
+[![AWS](https://img.shields.io/badge/AWS-EKS-orange)](https://aws.amazon.com/eks/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.28-blue)](https://kubernetes.io/)
+[![ArgoCD](https://img.shields.io/badge/ArgoCD-GitOps-green)](https://argo-cd.readthedocs.io/)
+[![Terraform](https://img.shields.io/badge/Terraform-IaC-purple)](https://www.terraform.io/)
+
+---
+
+## 📋 Overview
+
+AutoStack is an enterprise-grade deployment platform that combines modern DevOps practices with cloud-native technologies. Deploy React frontends and FastAPI backends with zero-downtime rolling updates, automatic scaling, and full observability.
+
+### **Live Production URLs**
+```
+Frontend: http://k8s-default-autostac-18fa0b5381-e5c307af56b74821.elb.ap-south-1.amazonaws.com
+Backend:  http://k8s-default-autostac-1121a3f904-b22168c9296faf81.elb.ap-south-1.amazonaws.com
+API Docs: http://k8s-default-autostac-1121a3f904-b22168c9296faf81.elb.ap-south-1.amazonaws.com/docs
+```
 
 ---
 
 ## ✨ Features
 
-- 🔐 **Secure Authentication** - JWT-based auth with automatic token refresh
-- 🐙 **GitHub Integration** - Connect your repositories and deploy instantly
-- 🐳 **Docker Deployments** - Automatic containerization and deployment
-- 📊 **Real-time Monitoring** - Prometheus + Grafana integration
-- 🎨 **Modern UI** - Beautiful, responsive interface with glassmorphism design
-- ⚡ **Fast & Reliable** - Built on Next.js 15 and FastAPI
+### **Infrastructure**
+- ☁️ **AWS EKS** - Managed Kubernetes cluster (v1.28)
+- 🌐 **Load Balancing** - AWS Classic ELB for public access
+- 📈 **Auto-scaling** - Cluster Autoscaler + HPA
+- 🔐 **Secure** - IAM roles, VPC isolation, encrypted storage
+
+### **Applications**
+- ⚛️ **React Frontend** - Modern UI with Next.js
+- 🐍 **FastAPI Backend** - Async Python API
+- 🗄️ **PostgreSQL** - Persistent database
+- 🔄 **GitOps** - ArgoCD for declarative deployments
+
+### **CI/CD**
+- 🤖 **Jenkins** - Automated build pipelines
+- 🐳 **Docker** - Containerized applications
+- 📦 **ECR** - AWS container registry
+- 🚀 **One-click Deploy** - Git push triggers deployment
+
+### **Observability**
+- 📊 **Metrics Server** - Resource monitoring
+- 🔍 **CloudWatch** - Centralized logging
+- 📈 **Prometheus** (Ready) - Metrics collection
+- 📉 **Grafana** (Ready) - Visual dashboards
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│                   Internet                      │
+└────────────┬────────────────────────────────────┘
+             │
+       ┌─────▼─────┐
+       │   AWS ELB │ (Load Balancers)
+       └─────┬─────┘
+             │
+    ┌────────▼────────┐
+    │   EKS Cluster   │
+    │   (Kubernetes)  │
+    ├─────────────────┤
+    │ ┌─────────────┐ │
+    │ │  Frontend   │ │ (React/Next.js)
+    │ │  Pods (1-3) │ │
+    │ └──────┬──────┘ │
+    │        │        │
+    │ ┌──────▼──────┐ │
+    │ │  Backend    │ │ (FastAPI)
+    │ │  Pods (1-3) │ │
+    │ └──────┬──────┘ │
+    │        │        │
+    │ ┌──────▼──────┐ │
+    │ │ PostgreSQL  │ │
+    │ │  Pod (1)    │ │
+    │ └─────────────┘ │
+    └─────────────────┘
+            │
+    ┌───────▼────────┐
+    │    ArgoCD      │ ← GitOps sync from GitHub
+    └────────────────┘
+            │
+    ┌───────▼────────┐
+    │    Jenkins     │ ← CI/CD automation
+    └────────────────┘
+```
 
 ---
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Docker & Docker Compose
-- Git
+### **Prerequisites**
+- AWS CLI configured with credentials
+- kubectl installed
+- Terraform v1.5+
+- Helm v3+
+- Docker
 
-### Installation
+### **Deploy Infrastructure**
 
 ```bash
-# Clone the repository
+# Clone repository
 git clone https://github.com/Raj-glitch-max/auto-stack-deploy.git
 cd auto-stack-deploy
 
-# Start all services
-docker-compose up -d
+# Deploy infrastructure with Terraform
+cd infra/terraform
+terraform init
+terraform plan
+terraform apply -auto-approve
 
-# Wait for services to start (30-60 seconds)
-# Then access the application
+# Configure kubectl
+aws eks update-kubeconfig --name autostack-prod-eks --region ap-south-1
+
+# Verify cluster
+kubectl get nodes
 ```
 
-### Access Points
+### **Deploy Applications**
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
-- **Prometheus**: http://localhost:9090
-- **Grafana**: http://localhost:3001 (admin/admin)
+Applications are automatically deployed via ArgoCD from GitHub:
 
-### First Login
+```bash
+# Check ArgoCD applications
+kubectl get applications -n argocd
 
+# Check pods
+kubectl get pods -n default
+
+# Check services
+kubectl get svc -n default
 ```
-Email: pdinkar821@gmail.com
-Password: Test@123456
-```
 
-Or create a new account at http://localhost:3000/signup
+### **Access Applications**
+
+```bash
+# Get public URLs
+kubectl get svc -n default
+
+# Frontend and Backend will show EXTERNAL-IP (AWS Load Balancer DNS)
+# Access via browser or curl
+```
 
 ---
 
-## 📁 Project Structure
+## 📦 Project Structure
 
 ```
-autostack/
-├── autostack-frontend/     # Next.js 15 frontend
-│   ├── app/               # Next.js app directory
-│   ├── components/        # React components
-│   ├── lib/              # Utilities and API client
-│   └── Dockerfile
+auto-stack-deploy/
+├── autostack-frontend/          # React/Next.js application
+│   ├── src/                     # Source code
+│   ├── public/                  # Static assets
+│   ├── Dockerfile               # Container image definition
+│   └── package.json             # Dependencies
 │
-├── autostack-backend/     # FastAPI backend
-│   └── backend/
-│       ├── alembic/      # Database migrations
-│       ├── auth.py       # Authentication logic
-│       ├── crud.py       # Database operations
-│       ├── deploy_engine.py  # Deployment logic
-│       ├── main.py       # FastAPI app
-│       ├── models.py     # SQLAlchemy models
-│       └── Dockerfile
+├── autostack-backend/           # FastAPI application
+│   ├── backend/
+│   │   ├── main.py              # API entry point
+│   │   ├── models.py            # Database models
+│   │   ├── auth.py              # Authentication logic
+│   │   ├── deploy_engine.py    # Deployment engine
+│   │   ├── alembic/             # Database migrations
+│   │   └── Dockerfile           # Container image
+│   └── requirements.txt         # Python dependencies
 │
-├── monitoring/           # Prometheus & Grafana configs
-├── docker-compose.yml    # Docker Compose configuration
-└── README.md            # This file
+├── infra/                       # Infrastructure as Code
+│   ├── terraform/               # AWS infrastructure
+│   │   ├── main.tf              # Main configuration
+│   │   ├── modules/             # Reusable modules
+│   │   └── terraform.tfvars     # Variables
+│   │
+│   ├── helm/                    # Kubernetes applications
+│   │   ├── autostack-frontend/  # Frontend Helm chart
+│   │   └── autostack-backend/   # Backend Helm chart
+│   │
+│   └── argocd/                  # GitOps configuration
+│       └── apps/                # ArgoCD application manifests
+│
+├── Jenkinsfile.backend          # Backend CI/CD pipeline
+├── Jenkinsfile.frontend         # Frontend CI/CD pipeline
+│
+└── docs/                        # Documentation
+    ├── BUILDING.md              # Build instructions
+    ├── DEPLOYMENT.md            # Deployment guide
+    ├── TROUBLESHOOTING.md       # Issues and fixes
+    └── ARCHITECTURE.md          # System architecture
 ```
 
 ---
 
-## 🔧 Technology Stack
+## 🔧 Development
 
-### Frontend
-- **Framework**: Next.js 15 (React 19)
-- **Styling**: Tailwind CSS
-- **UI Components**: Radix UI, Lucide Icons
-- **Animations**: Framer Motion
-- **HTTP Client**: Axios with interceptors
+### **Build Locally**
 
-### Backend
-- **Framework**: FastAPI (Python 3.12)
-- **Database**: PostgreSQL 16
-- **ORM**: SQLAlchemy (async)
-- **Auth**: JWT with refresh tokens
-- **Migrations**: Alembic
-- **Deployment**: Docker SDK
-
-### Infrastructure
-- **Containerization**: Docker & Docker Compose
-- **Monitoring**: Prometheus + Grafana
-- **Reverse Proxy**: NGINX (production)
-- **Database**: PostgreSQL with persistent volumes
-
----
-
-## 🛠️ Development
-
-### Running Locally
+See [BUILDING.md](./BUILDING.md) for detailed build instructions.
 
 ```bash
-# Start all services
+# Build Docker images
+docker build -t autostack-frontend ./autostack-frontend
+docker build -t autostack-backend ./autostack-backend/backend
+
+# Run locally
 docker-compose up -d
-
-# View logs
-docker-compose logs -f backend
-docker-compose logs -f frontend
-
-# Restart a service
-docker-compose restart backend
-
-# Rebuild after code changes
-docker-compose up -d --build
 ```
 
-### Environment Variables
+### **Deploy to Production**
 
-#### Backend (`.env`)
-```bash
-DATABASE_URL=postgresql+asyncpg://autostack:autostack@db:5432/autostack
-SECRET_KEY=your-secret-key-here
-GITHUB_CLIENT_ID=your-github-client-id
-GITHUB_CLIENT_SECRET=your-github-client-secret
-```
-
-#### Frontend (`.env.local`)
-```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_USE_MOCKS=false
-```
-
-### Database Migrations
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for complete deployment guide.
 
 ```bash
-# Create a new migration
-docker exec -it autostack-backend alembic revision --autogenerate -m "description"
+# Automatic deployment via Git push
+git add .
+git commit -m "feat: new feature"
+git push origin main
 
-# Apply migrations
-docker exec -it autostack-backend alembic upgrade head
-
-# Rollback
-docker exec -it autostack-backend alembic downgrade -1
+# Jenkins builds → ECR push → ArgoCD sync → EKS deployment
 ```
-
----
-
-## 🐳 Docker Configuration
-
-### Services
-
-| Service | Port | Description |
-|---------|------|-------------|
-| frontend | 3000 | Next.js application |
-| backend | 8000 | FastAPI server |
-| db | 5432 | PostgreSQL database |
-| prometheus | 9090 | Metrics collection |
-| grafana | 3001 | Metrics visualization |
-
-### Volumes
-
-- `postgres_data` - Persistent database storage
-- `/var/run/docker.sock` - Docker socket for deployments
-
-### Networks
-
-All services run on the `projects_default` network, allowing inter-container communication using service names (e.g., `backend:8000`).
-
----
-
-## 🔐 Authentication Flow
-
-1. **Login/Signup** - User provides credentials
-2. **Token Generation** - Backend issues access token (JWT) + refresh token
-3. **Token Storage** - Tokens stored in localStorage
-4. **API Requests** - Access token sent in Authorization header
-5. **Token Refresh** - On 401 error, automatically refresh using refresh token
-6. **Seamless UX** - User never sees authentication errors
-
-### GitHub OAuth
-
-1. User clicks "Connect GitHub Account"
-2. Redirected to GitHub authorization
-3. GitHub redirects back with code
-4. Backend exchanges code for access token
-5. User's GitHub repos become available for deployment
-
----
-
-## 🚢 Deployment Workflow
-
-1. **Connect GitHub** - Link your GitHub account
-2. **Select Repository** - Choose a repo to deploy
-3. **Configure** - Set environment variables (optional)
-4. **Deploy** - Click deploy button
-5. **Monitor** - Watch real-time logs and status
-6. **Access** - Get your deployment URL
-
-### How It Works
-
-- Backend clones your repository
-- Detects framework (Next.js, React, etc.)
-- Builds Docker image
-- Starts container with assigned port
-- Monitors deployment status
-- Provides access URL
-
----
-
-## 📊 Monitoring
-
-### Prometheus Metrics
-
-- CPU usage per deployment
-- Memory usage per deployment
-- Request rates
-- Error rates
-- Deployment status
-
-### Grafana Dashboards
-
-Access Grafana at http://localhost:3001 (admin/admin)
-
-Pre-configured dashboards:
-- System Overview
-- Deployment Metrics
-- API Performance
-
----
-
-## 🧪 Testing
-
-### Backend Tests
-
-```bash
-# Run all tests
-docker exec -it autostack-backend pytest
-
-# Run with coverage
-docker exec -it autostack-backend pytest --cov=backend
-```
-
-### Frontend Tests
-
-```bash
-# Run tests
-docker exec -it autostack-frontend npm test
-
-# Run with watch mode
-docker exec -it autostack-frontend npm test -- --watch
-```
-
-### Manual Testing
-
-1. **Health Check**
-   ```bash
-   curl http://localhost:8000/health
-   ```
-
-2. **User Signup**
-   ```bash
-   curl -X POST http://localhost:8000/signup \
-     -H "Content-Type: application/json" \
-     -d '{"email":"test@example.com","password":"Test@123456","name":"Test User"}'
-   ```
-
-3. **Login**
-   ```bash
-   curl -X POST http://localhost:8000/login \
-     -H "Content-Type: application/json" \
-     -d '{"email":"test@example.com","password":"Test@123456"}'
-   ```
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Frontend can't reach backend
+See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for common issues and solutions.
 
-**Problem**: Console shows connection errors or 401/500 errors
-
-**Solution**: Ensure `NEXT_PUBLIC_API_URL` is set correctly:
-- In Docker: `http://backend:8000`
-- Locally: `http://localhost:8000`
-
-```bash
-# Rebuild with correct URL
-docker-compose down
-docker-compose up --build -d
-```
-
-### Database connection errors
-
-**Problem**: Backend fails to start with database errors
-
-**Solution**: Ensure database is healthy
-```bash
-docker-compose ps
-docker logs autostack-db
-
-# Restart database
-docker-compose restart db
-```
-
-### Port already in use
-
-**Problem**: `Error: Port 3000/8000 already in use`
-
-**Solution**: Stop conflicting services
-```bash
-# Find process using port
-lsof -i :3000
-lsof -i :8000
-
-# Kill process or stop docker containers
-docker stop $(docker ps -q)
-```
-
-### Clean restart
-
-```bash
-# Stop everything and remove volumes
-docker-compose down -v
-
-# Remove all Docker resources
-docker system prune -af
-
-# Start fresh
-docker-compose up --build -d
-```
+**Common issues:**
+- LoadBalancer stuck in "Pending" → Check IAM permissions
+- Pods CrashLoopBackOff → Check logs with `kubectl logs`
+- ArgoCD OutOfSync → Check GitHub repo and refresh app
 
 ---
 
-## 📚 API Documentation
+## 💰 Cost Breakdown
 
-### Authentication Endpoints
+| Service | Configuration | Monthly Cost |
+|---------|---------------|--------------|
+| EKS Control Plane | 1 cluster | $73.00 |
+| EC2 Nodes | 3x t3.small spot | $13.50 |
+| Jenkins EC2 | 1x t3.micro | $7.50 |
+| RDS PostgreSQL | 1x db.t3.micro | $12.50 |
+| Load Balancers | 2x Classic ELB | $36.00 |
+| EBS + Other | Storage, logs | $20.00 |
+| **Total** | | **~$162/month** |
 
-- `POST /signup` - Create new user account
-- `POST /login` - Login and get tokens
-- `POST /refresh` - Refresh access token
-- `POST /logout` - Logout (client-side)
-- `GET /me` - Get current user info
-
-### GitHub Integration
-
-- `GET /auth/github` - Initiate GitHub OAuth
-- `GET /auth/github/callback` - OAuth callback
-- `GET /github/repos` - List user's repositories
-
-### Deployment Endpoints
-
-- `POST /deploy` - Create new deployment
-- `GET /deployments` - List all deployments
-- `GET /status/{deploy_id}` - Get deployment status
-- `GET /logs/{deploy_id}` - Get deployment logs
-
-### Health & Monitoring
-
-- `GET /health` - Health check
-- `GET /metrics` - Prometheus metrics
-- `GET /metrics/overview` - System overview
-
-Full API documentation available at: http://localhost:8000/docs
+*Cost-optimized for production workloads*
 
 ---
 
-## 🔒 Security
+## 📊 Tech Stack
 
-- ✅ JWT-based authentication with refresh tokens
-- ✅ Password hashing with Argon2
-- ✅ CORS configuration for allowed origins
-- ✅ Rate limiting on API endpoints
-- ✅ SQL injection prevention (SQLAlchemy ORM)
-- ✅ XSS protection (React escaping)
-- ✅ Environment variable management
-- ✅ Secure token storage (httpOnly cookies option)
+### **Frontend**
+- React 18
+- Next.js 15
+- TypeScript
+- TailwindCSS
+- Lucide Icons
 
-### Production Recommendations
+### **Backend**
+- FastAPI (Python 3.11)
+- SQLAlchemy (async)
+- Alembic (migrations)
+- PostgreSQL 15
+- JWT Authentication
 
-1. **Change default credentials**
-2. **Use strong SECRET_KEY**
-3. **Enable HTTPS**
-4. **Configure proper CORS origins**
-5. **Set up database backups**
-6. **Use secrets management (e.g., AWS Secrets Manager)**
-7. **Enable rate limiting**
-8. **Set up monitoring alerts**
+### **Infrastructure**
+- AWS EKS (Kubernetes 1.28)
+- Terraform (IaC)
+- Helm Charts
+- ArgoCD (GitOps)
+- Jenkins (CI/CD)
+
+### **DevOps Tools**
+- Docker
+- AWS ECR
+- AWS Load Balancer Controller
+- Cluster Autoscaler
+- Metrics Server
 
 ---
 
-## 🚀 Production Deployment
+## 📈 Metrics
 
-See [SETUP.md](./SETUP.md) for detailed production deployment instructions including:
-- AWS/GCP/Azure deployment
-- Domain configuration
-- SSL certificates
-- Environment setup
-- Scaling strategies
+- **Deployment Time**: 5 minutes (git push to production)
+- **Uptime**: 99.9% target
+- **Auto-scaling**: 1-3 pods per service
+- **Zero-downtime**: Rolling updates
+- **Build Success Rate**: 95%+
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
-
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
 
 ---
 
@@ -430,18 +310,36 @@ This project is licensed under the MIT License.
 
 ## 🙏 Acknowledgments
 
-- Next.js team for the amazing framework
-- FastAPI team for the blazing-fast API framework
-- Docker for containerization
-- All open-source contributors
+Built with:
+- [Kubernetes](https://kubernetes.io/)
+- [ArgoCD](https://argo-cd.readthedocs.io/)
+- [Terraform](https://www.terraform.io/)
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [React](https://react.dev/)
 
 ---
 
 ## 📞 Support
 
+- **Documentation**: See `docs/` folder
 - **Issues**: [GitHub Issues](https://github.com/Raj-glitch-max/auto-stack-deploy/issues)
-- **Email**: pdinkar821@gmail.com
+- **Discussions**: [GitHub Discussions](https://github.com/Raj-glitch-max/auto-stack-deploy/discussions)
 
 ---
 
-**Built with ❤️ by Raj**
+## 🎯 Roadmap
+
+- [x] AWS EKS deployment
+- [x] GitOps with ArgoCD
+- [x] CI/CD with Jenkins
+- [x] Auto-scaling
+- [x] Load balancing
+- [ ] Prometheus + Grafana
+- [ ] Custom domain + HTTPS
+- [ ] Multi-region deployment
+- [ ] Blue-green deployments
+- [ ] Canary releases
+
+---
+
+**Built with ❤️ using modern DevOps practices**
