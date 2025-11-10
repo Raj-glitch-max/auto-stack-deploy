@@ -99,7 +99,8 @@ export default function SignupPage() {
 
         {/* Signup Form */}
         <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-8">
-          {/* Google OAuth Button */}
+          {/* Google OAuth Button - Disabled (not configured) */}
+          {/* 
           <button
             onClick={handleGoogleSignup}
             className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl text-white font-medium transition-all duration-200 mb-6"
@@ -113,12 +114,12 @@ export default function SignupPage() {
             Continue with Google
           </button>
 
-          {/* Divider */}
           <div className="flex items-center gap-4 mb-6">
             <div className="flex-1 h-px bg-white/10"></div>
             <span className="text-sm text-gray-500">Or</span>
             <div className="flex-1 h-px bg-white/10"></div>
           </div>
+          */}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Name Field */}
