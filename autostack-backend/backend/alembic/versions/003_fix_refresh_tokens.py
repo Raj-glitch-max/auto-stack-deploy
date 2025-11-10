@@ -1,7 +1,7 @@
 """Fix refresh_tokens column name
 
-Revision ID: 002_fix_tokens
-Revises: 001_initial
+Revision ID: 003_fix_tokens
+Revises: 002_github_oauth
 Create Date: 2025-11-08 22:59:00.000000
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '002_fix_tokens'
-down_revision = '001_initial'
+revision = '003_fix_tokens'
+down_revision = '002_github_oauth'
 branch_labels = None
 depends_on = None
 
