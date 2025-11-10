@@ -20,8 +20,8 @@ services:
 
   backend:
     build:
-      context: ./autostack-backend
-      dockerfile: backend/Dockerfile
+      context: ./autostack-backend/backend
+      dockerfile: Dockerfile
       target: runner
     container_name: autostack-backend
     env_file:

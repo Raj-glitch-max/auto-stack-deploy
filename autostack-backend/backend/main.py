@@ -23,6 +23,7 @@ from .auth import get_current_user, router as auth_router
 from .db import AsyncSessionLocal, get_db
 from .middleware import ErrorHandlingMiddleware, RateLimitMiddleware
 from .deploy_engine import DeployEngine
+from .k8s_deploy_engine import K8sDeployEngine
 from .schemas import (
     AgentHeartbeat,
     AgentRegister,
@@ -110,8 +111,9 @@ app.add_middleware(ErrorHandlingMiddleware)
 # Mount Auth router
 app.include_router(auth_router, prefix="", tags=["auth"])
 
-# Initialize Deploy Engine
-deploy_engine = DeployEngine()
+# Initialize Deploy Engines
+deploy_engine = DeployEngine()  # Legacy local Docker deployment
+k8s_deploy_engine = K8sDeployEngine()  # New Kubernetes deployment for production
 
 # ========================
 # Health Check
@@ -170,7 +172,7 @@ async def deploy_endpoint(
 
 
 async def run_deployment(deploy_id: str, repo: str, branch: str, github_token: str = None):
-    """Background task to run actual deployment using deploy engine"""
+    """Background task to run actual deployment using Kubernetes deploy engine"""
     async with AsyncSessionLocal() as session:
         deploy = await crud.get_deploy(session, deploy_id)
         if not deploy:
@@ -184,30 +186,43 @@ async def run_deployment(deploy_id: str, repo: str, branch: str, github_token: s
             # Log: Starting deployment
             await crud.append_log(session, deploy, f"🚀 Starting deployment of {repo} ({branch})...")
             await crud.append_log(session, deploy, "📦 Cloning repository...")
+            await crud.append_log(session, deploy, "🔨 Building Docker image...")
+            await crud.append_log(session, deploy, "☁️  Pushing to AWS ECR...")
+            await crud.append_log(session, deploy, "🚀 Deploying to Kubernetes...")
             
-            # Run deployment
-            success, deploy_info, error = await deploy_engine.deploy_from_github(
+            # Run Kubernetes deployment
+            success, deploy_info, message = await k8s_deploy_engine.build_and_deploy(
                 repo_url=repo,
                 branch=branch,
-                deploy_id=deploy_id
+                deploy_id=deploy_id,
+                user_id=str(deploy.user_id)
             )
             
             if success:
                 # Update deployment with success info
                 deploy.status = "success"
-                deploy.port = deploy_info.get("port")
-                deploy.container_id = deploy_info.get("container_id")
                 deploy.url = deploy_info.get("url")
+                deploy.container_id = deploy_info.get("app_name")  # Store app name
+                deploy.port = 80  # LoadBalancer port
                 
                 await crud.append_log(session, deploy, f"✅ Deployment successful!")
-                await crud.append_log(session, deploy, f"🌐 URL: {deploy_info.get('url')}")
-                await crud.append_log(session, deploy, f"🐳 Container: {deploy_info.get('container_name')}")
+                await crud.append_log(session, deploy, f"🌐 Live URL: {deploy_info.get('url')}")
+                await crud.append_log(session, deploy, f"📦 App Name: {deploy_info.get('app_name')}")
+                await crud.append_log(session, deploy, f"🐳 Image: {deploy_info.get('image')}")
                 await crud.append_log(session, deploy, f"📊 Project Type: {deploy_info.get('project_type')}")
+                await crud.append_log(session, deploy, f"🎯 Namespace: {deploy_info.get('namespace')}")
+                await crud.append_log(session, deploy, "")
+                await crud.append_log(session, deploy, "✨ DevOps Features Active:")
+                await crud.append_log(session, deploy, "  ✅ Auto-scaling (2-10 replicas)")
+                await crud.append_log(session, deploy, "  ✅ Self-healing (health checks)")
+                await crud.append_log(session, deploy, "  ✅ Load balancing (AWS ELB)")
+                await crud.append_log(session, deploy, "  ✅ High availability (multi-replica)")
+                await crud.append_log(session, deploy, "  ✅ Zero-downtime deployments")
             else:
                 # Update deployment with failure info
                 deploy.status = "failed"
-                deploy.error_message = error
-                await crud.append_log(session, deploy, f"❌ Deployment failed: {error}")
+                deploy.error_message = message
+                await crud.append_log(session, deploy, f"❌ Deployment failed: {message}")
             
             await session.commit()
             
@@ -243,6 +258,70 @@ async def list_deploys(
         print(f"⚠️ Error fetching deployments: {e}")
         # Return empty list instead of error
         return {"deployments": []}
+
+
+@app.delete("/deployments/{deploy_id}")
+async def delete_deployment(
+    deploy_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Delete a deployment from Kubernetes and database"""
+    try:
+        # Get deployment
+        deploy = await crud.get_deploy(db, deploy_id)
+        if not deploy:
+            raise HTTPException(status_code=404, detail="Deployment not found")
+        
+        # Check ownership
+        if deploy.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        # Delete from Kubernetes if app_name exists
+        if deploy.container_id:  # container_id stores app_name
+            success, message = await k8s_deploy_engine.delete_deployment(deploy.container_id)
+            if not success:
+                raise HTTPException(status_code=500, detail=message)
+        
+        # Delete from database
+        await db.delete(deploy)
+        await db.commit()
+        
+        return {"message": "Deployment deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/deployments/{deploy_id}/logs")
+async def get_deployment_logs(
+    deploy_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get live logs from Kubernetes deployment"""
+    try:
+        # Get deployment
+        deploy = await crud.get_deploy(db, deploy_id)
+        if not deploy:
+            raise HTTPException(status_code=404, detail="Deployment not found")
+        
+        # Check ownership
+        if deploy.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        # Get logs from Kubernetes
+        if deploy.container_id:  # container_id stores app_name
+            logs = await k8s_deploy_engine.get_deployment_logs(deploy.container_id)
+            return {"logs": logs}
+        
+        # Fallback to stored logs
+        return {"logs": deploy.logs or "No logs available"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/deployments/trigger")
 async def trigger_cloud_deployment(
@@ -836,7 +915,7 @@ async def websocket_logs(websocket: WebSocket, deploy_id: str):
 async def startup_fix_database():
     """Auto-fix database schema issues on startup"""
     try:
-        print("🔧 Checking database schema...")
+        print("Checking database schema...")
         async with AsyncSessionLocal() as session:
             # Fix refresh_tokens table - rename token to token_hash if needed
             try:
@@ -846,13 +925,13 @@ async def startup_fix_database():
                     WHERE table_name='refresh_tokens' AND column_name='token'
                 """))
                 if result.fetchone():
-                    print("🔄 Fixing refresh_tokens table...")
+                    print("Fixing refresh_tokens table...")
                     await session.execute(text("ALTER TABLE refresh_tokens RENAME COLUMN token TO token_hash"))
                     await session.execute(text("ALTER INDEX IF EXISTS ix_refresh_tokens_token RENAME TO ix_refresh_tokens_token_hash"))
                     await session.commit()
-                    print("✅ Fixed refresh_tokens.token → token_hash")
+                    print("Fixed refresh_tokens.token -> token_hash")
                 else:
-                    print("ℹ️  refresh_tokens schema OK")
+                    print("refresh_tokens schema OK")
             except Exception as e:
                 print(f"⚠️  refresh_tokens fix: {e}")
                 await session.rollback()
@@ -866,18 +945,18 @@ async def startup_fix_database():
                 """))
                 row = result.fetchone()
                 if row and row[0] == 'text':
-                    print("🔄 Fixing audit_logs table...")
+                    print("Fixing audit_logs table...")
                     await session.execute(text("UPDATE audit_logs SET details = '{}' WHERE details IS NULL OR details = ''"))
                     await session.execute(text("ALTER TABLE audit_logs ALTER COLUMN details TYPE json USING COALESCE(details::json, '{}'::json)"))
                     await session.commit()
-                    print("✅ Fixed audit_logs.details → JSON")
+                    print("Fixed audit_logs.details -> JSON")
                 else:
-                    print("ℹ️  audit_logs schema OK")
+                    print("audit_logs schema OK")
             except Exception as e:
                 print(f"⚠️  audit_logs fix: {e}")
                 await session.rollback()
         
-        print("✅ Database schema check complete")
+        print("Database schema check complete")
     except Exception as e:
         print(f"❌ Database schema fix error: {e}")
 

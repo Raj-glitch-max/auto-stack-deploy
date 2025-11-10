@@ -239,12 +239,12 @@ async def github_login():
     github_client_id = os.getenv("GITHUB_CLIENT_ID")
     github_callback_url = os.getenv("GITHUB_CALLBACK_URL", "http://localhost:8000/auth/github/callback")
     
-    print(f"🔍 GitHub OAuth Check:")
+    print("GitHub OAuth Check:")
     print(f"   Client ID: {github_client_id[:10] if github_client_id else 'NOT SET'}...")
     print(f"   Callback URL: {github_callback_url}")
     
     if not github_client_id:
-        print("❌ ERROR: GITHUB_CLIENT_ID not set in environment")
+        print("ERROR: GITHUB_CLIENT_ID not set in environment")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="GitHub OAuth not configured. Please set GITHUB_CLIENT_ID in environment"
@@ -257,7 +257,7 @@ async def github_login():
         f"&scope=repo,user:email"
     )
     
-    print(f"✅ GitHub OAuth URL generated successfully")
+    print("GitHub OAuth URL generated successfully")
     return {"url": github_auth_url}
 
 
@@ -270,10 +270,10 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
     github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")
     github_callback_url = os.getenv("GITHUB_CALLBACK_URL", "http://localhost:8000/auth/github/callback")
     
-    print(f"🔐 GitHub OAuth callback initiated with code: {code[:20]}...")
+    print(f"GitHub OAuth callback initiated with code: {code[:20]}...")
     
     if not github_client_id or not github_client_secret:
-        print("❌ ERROR: GitHub OAuth credentials not configured")
+        print("ERROR: GitHub OAuth credentials not configured")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="GitHub OAuth not configured"
@@ -282,7 +282,7 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
     try:
         # Exchange code for access token
         # GitHub OAuth API requires form data, not JSON
-        print("📡 Exchanging authorization code for access token...")
+        print("Exchanging authorization code for access token...")
         async with httpx.AsyncClient(timeout=30.0) as client:
             token_response = await client.post(
                 "https://github.com/login/oauth/access_token",
@@ -300,7 +300,7 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
             
             if token_response.status_code != 200:
                 error_detail = token_response.text
-                print(f"❌ Failed to get GitHub access token: {error_detail}")
+                print(f"Failed to get GitHub access token: {error_detail}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Failed to get GitHub access token: {error_detail}"
@@ -310,7 +310,7 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
             
             if "error" in token_data:
                 error_msg = token_data.get("error_description", token_data.get("error", "Unknown error"))
-                print(f"❌ GitHub OAuth error: {error_msg}")
+                print(f"GitHub OAuth error: {error_msg}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"GitHub OAuth error: {error_msg}"
@@ -319,16 +319,16 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
             github_token = token_data.get("access_token")
             
             if not github_token:
-                print("❌ No access token in GitHub response")
+                print("No access token in GitHub response")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Failed to get GitHub access token"
                 )
             
-            print("✅ Successfully obtained GitHub access token")
+            print("Successfully obtained GitHub access token")
         
         # Get user info from GitHub
-        print("👤 Fetching user info from GitHub...")
+        print("Fetching user info from GitHub...")
         async with httpx.AsyncClient(timeout=30.0) as client:
             user_response = await client.get(
                 "https://api.github.com/user",
@@ -340,19 +340,19 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
             
             if user_response.status_code != 200:
                 error_detail = user_response.text
-                print(f"❌ Failed to get GitHub user info: {error_detail}")
+                print(f"Failed to get GitHub user info: {error_detail}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Failed to get GitHub user info"
                 )
             
             github_user = user_response.json()
-            print(f"✅ Retrieved GitHub user info for: {github_user.get('login')}")
+            print(f"Retrieved GitHub user info for: {github_user.get('login')}")
             
             # Get user's email if not public
             email = github_user.get("email")
             if not email:
-                print("📧 Email not in public profile, fetching from emails API...")
+                print("Email not in public profile, fetching from emails API...")
                 email_response = await client.get(
                     "https://api.github.com/user/emails",
                     headers={
@@ -377,10 +377,10 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
                     # If still no email, get first email
                     if not email and emails:
                         email = emails[0].get("email")
-                    print(f"✅ Retrieved email from GitHub: {email}")
+                    print(f"Retrieved email from GitHub: {email}")
         
         if not email:
-            print("❌ Could not get email from GitHub account")
+            print("Could not get email from GitHub account")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Could not get email from GitHub account. Please ensure your GitHub account has a verified email address."
@@ -389,12 +389,12 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
         # Database transaction with rollback on error
         try:
             # Check if user exists by email
-            print(f"🔍 Checking if user exists: {email}")
+            print(f"Checking if user exists: {email}")
             user = await crud.get_user_by_email(db, email)
             
             if not user:
                 # Create new user with GitHub OAuth
-                print(f"➕ Creating new user for: {email}")
+                print(f"Creating new user for: {email}")
                 user = models.User(
                     email=email,
                     password_hash=hash_password(secrets.token_urlsafe(32)),  # Random password
@@ -404,7 +404,7 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
                 db.add(user)
                 await db.commit()
                 await db.refresh(user)
-                print(f"✅ Created new user with ID: {user.id}")
+                print(f"Created new user with ID: {user.id}")
                 
                 # Create audit log (safe - handles missing email gracefully)
                 try:
@@ -416,17 +416,17 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
                         resource_id=str(user.id),
                         details={"email": email, "github_username": github_user.get("login")}
                     )
-                    print("✅ Audit log created for signup")
+                    print("Audit log created for signup")
                 except Exception as audit_err:
-                    print(f"⚠️ Warning: Failed to create audit log: {audit_err}")
+                    print(f"Warning: Failed to create audit log: {audit_err}")
                     # Continue even if audit log fails
             else:
                 # Update existing user with GitHub info
-                print(f"🔄 Updating existing user: {email}")
+                print(f"Updating existing user: {email}")
                 user.github_token = github_token
                 user.github_username = github_user.get("login")
                 await db.commit()
-                print(f"✅ Updated user with ID: {user.id}")
+                print(f"Updated user with ID: {user.id}")
                 
                 # Create audit log (safe)
                 try:
@@ -437,13 +437,13 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
                         resource_type="auth",
                         details={"email": email, "github_username": github_user.get("login")}
                     )
-                    print("✅ Audit log created for login")
+                    print("Audit log created for login")
                 except Exception as audit_err:
-                    print(f"⚠️ Warning: Failed to create audit log: {audit_err}")
+                    print(f"Warning: Failed to create audit log: {audit_err}")
                     # Continue even if audit log fails
             
             # Create JWT tokens (use user.id for consistency)
-            print("🔑 Generating JWT tokens...")
+            print("Generating JWT tokens...")
             access_token = create_access_token(str(user.id))
             
             # Create refresh token
@@ -452,19 +452,19 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
             expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
             expires_at_naive = expires_at.replace(tzinfo=None)
             await crud.create_refresh_token(db, user=user, token_hash=refresh_token_hash, expires_at=expires_at_naive)
-            print("✅ JWT tokens created successfully")
+            print("JWT tokens created successfully")
             
             # Redirect to frontend with tokens
             frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
             redirect_url = f"{frontend_url}/auth/callback?access_token={access_token}&refresh_token={refresh_token}"
-            print(f"🎉 GitHub OAuth successful! Redirecting to: {frontend_url}/auth/callback")
+            print(f"GitHub OAuth successful. Redirecting to: {frontend_url}/auth/callback")
             
             return RedirectResponse(url=redirect_url)
             
         except Exception as db_err:
             # Rollback on database error
             await db.rollback()
-            print(f"❌ Database error during OAuth: {type(db_err).__name__}: {str(db_err)}")
+            print(f"Database error during OAuth: {type(db_err).__name__}: {str(db_err)}")
             traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -475,14 +475,14 @@ async def github_callback(code: str, db: AsyncSession = Depends(get_db)):
         # Re-raise HTTP exceptions as-is
         raise
     except httpx.HTTPError as e:
-        print(f"❌ GitHub API HTTP error: {type(e).__name__}: {str(e)}")
+        print(f"GitHub API HTTP error: {type(e).__name__}: {str(e)}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"GitHub API error: {str(e)}"
         )
     except Exception as e:
-        print(f"❌ Unexpected OAuth error: {type(e).__name__}: {str(e)}")
+        print(f"Unexpected OAuth error: {type(e).__name__}: {str(e)}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -501,12 +501,12 @@ async def google_login():
     google_client_id = os.getenv("GOOGLE_CLIENT_ID")
     google_callback_url = os.getenv("GOOGLE_CALLBACK_URL", "http://localhost:8000/auth/google/callback")
     
-    print(f"🔍 Google OAuth Check:")
+    print("Google OAuth Check:")
     print(f"   Client ID: {google_client_id[:20] if google_client_id else 'NOT SET'}...")
     print(f"   Callback URL: {google_callback_url}")
     
     if not google_client_id:
-        print("⚠️  WARNING: GOOGLE_CLIENT_ID not set - returning not configured response")
+        print("WARNING: GOOGLE_CLIENT_ID not set - returning not configured response")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"error": "not_configured", "message": "Google OAuth is not configured on this server. Please use email/password login."}
@@ -524,7 +524,7 @@ async def google_login():
     }
     google_auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
     
-    print(f"✅ Google OAuth URL generated successfully")
+    print("Google OAuth URL generated successfully")
     print(f"   Full URL: {google_auth_url[:100]}...")
     
     return {"url": google_auth_url}
@@ -539,14 +539,14 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
     google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
     google_callback_url = os.getenv("GOOGLE_CALLBACK_URL", "http://localhost:8000/auth/google/callback")
     
-    print(f"🔐 Google OAuth callback initiated with code: {code[:20]}...")
-    print(f"🔍 Google OAuth Callback Configuration:")
+    print(f"Google OAuth callback initiated with code: {code[:20]}...")
+    print("Google OAuth Callback Configuration:")
     print(f"   Client ID: {google_client_id[:20] if google_client_id else 'NOT SET'}...")
     print(f"   Client Secret: {'SET' if google_client_secret else 'NOT SET'}")
     print(f"   Callback URL: {google_callback_url}")
     
     if not google_client_id or not google_client_secret:
-        print("⚠️  WARNING: Google OAuth credentials not configured")
+        print("WARNING: Google OAuth credentials not configured")
         missing = []
         if not google_client_id:
             missing.append("GOOGLE_CLIENT_ID")
@@ -559,7 +559,7 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
     
     try:
         # Exchange code for access token
-        print("📡 Exchanging authorization code for access token...")
+        print("Exchanging authorization code for access token...")
         async with httpx.AsyncClient(timeout=30.0) as client:
             token_response = await client.post(
                 "https://oauth2.googleapis.com/token",
@@ -575,7 +575,7 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
             
             if token_response.status_code != 200:
                 error_detail = token_response.text
-                print(f"❌ Failed to get Google access token: {error_detail}")
+                print(f"Failed to get Google access token: {error_detail}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Failed to get Google access token: {error_detail}"
@@ -585,16 +585,16 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
             google_access_token = token_data.get("access_token")
             
             if not google_access_token:
-                print("❌ No access token in Google response")
+                print("No access token in Google response")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Failed to get Google access token"
                 )
             
-            print("✅ Successfully obtained Google access token")
+            print("Successfully obtained Google access token")
         
         # Get user info from Google
-        print("👤 Fetching user info from Google...")
+        print("Fetching user info from Google...")
         async with httpx.AsyncClient(timeout=30.0) as client:
             user_response = await client.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
@@ -605,14 +605,14 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
             
             if user_response.status_code != 200:
                 error_detail = user_response.text
-                print(f"❌ Failed to get Google user info: {error_detail}")
+                print(f"Failed to get Google user info: {error_detail}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Failed to get Google user info"
                 )
             
             google_user = user_response.json()
-            print(f"✅ Retrieved Google user info for: {google_user.get('email')}")
+            print(f"Retrieved Google user info for: {google_user.get('email')}")
         
         email = google_user.get("email")
         google_id = google_user.get("id")
@@ -621,7 +621,7 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
         email_verified = google_user.get("verified_email", False)
         
         if not email or not google_id:
-            print("❌ Missing email or Google ID from user info")
+            print("Missing email or Google ID from user info")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Could not get email or ID from Google account"
@@ -630,12 +630,12 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
         # Database transaction with rollback on error
         try:
             # Check if user exists by email
-            print(f"🔍 Checking if user exists: {email}")
+            print(f"Checking if user exists: {email}")
             user = await crud.get_user_by_email(db, email)
             
             if not user:
                 # Create new user with Google OAuth
-                print(f"➕ Creating new user for: {email}")
+                print(f"Creating new user for: {email}")
                 user = models.User(
                     email=email,
                     password_hash=hash_password(secrets.token_urlsafe(32)),  # Random password
@@ -648,7 +648,7 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
                 db.add(user)
                 await db.commit()
                 await db.refresh(user)
-                print(f"✅ Created new user with ID: {user.id}")
+                print(f"Created new user with ID: {user.id}")
                 
                 # Create audit log (safe - handles missing email gracefully)
                 try:
@@ -660,13 +660,13 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
                         resource_id=str(user.id),
                         details={"email": email, "google_id": google_id, "name": name}
                     )
-                    print("✅ Audit log created for signup")
+                    print("Audit log created for signup")
                 except Exception as audit_err:
-                    print(f"⚠️ Warning: Failed to create audit log: {audit_err}")
+                    print(f"Warning: Failed to create audit log: {audit_err}")
                     # Continue even if audit log fails
             else:
                 # Update existing user with Google info
-                print(f"🔄 Updating existing user: {email}")
+                print(f"Updating existing user: {email}")
                 user.google_id = google_id
                 user.google_email = email
                 if name:
@@ -676,7 +676,7 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
                 if email_verified:
                     user.email_verified = True
                 await db.commit()
-                print(f"✅ Updated user with ID: {user.id}")
+                print(f"Updated user with ID: {user.id}")
                 
                 # Create audit log (safe)
                 try:
@@ -687,13 +687,13 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
                         resource_type="auth",
                         details={"email": email, "google_id": google_id}
                     )
-                    print("✅ Audit log created for login")
+                    print("Audit log created for login")
                 except Exception as audit_err:
-                    print(f"⚠️ Warning: Failed to create audit log: {audit_err}")
+                    print(f"Warning: Failed to create audit log: {audit_err}")
                     # Continue even if audit log fails
             
             # Create JWT tokens (use user.id for consistency)
-            print("🔑 Generating JWT tokens...")
+            print("Generating JWT tokens...")
             access_token = create_access_token(str(user.id))
             
             # Create refresh token
@@ -702,19 +702,19 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
             expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
             expires_at_naive = expires_at.replace(tzinfo=None)
             await crud.create_refresh_token(db, user=user, token_hash=refresh_token_hash, expires_at=expires_at_naive)
-            print("✅ JWT tokens created successfully")
+            print("JWT tokens created successfully")
             
             # Redirect to frontend with tokens
             frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
             redirect_url = f"{frontend_url}/auth/callback?access_token={access_token}&refresh_token={refresh_token}"
-            print(f"🎉 Google OAuth successful! Redirecting to: {frontend_url}/auth/callback")
+            print(f"Google OAuth successful. Redirecting to: {frontend_url}/auth/callback")
             
             return RedirectResponse(url=redirect_url)
             
         except Exception as db_err:
             # Rollback on database error
             await db.rollback()
-            print(f"❌ Database error during OAuth: {type(db_err).__name__}: {str(db_err)}")
+            print(f"Database error during OAuth: {type(db_err).__name__}: {str(db_err)}")
             traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -725,14 +725,14 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
         # Re-raise HTTP exceptions as-is
         raise
     except httpx.HTTPError as e:
-        print(f"❌ Google API HTTP error: {type(e).__name__}: {str(e)}")
+        print(f"Google API HTTP error: {type(e).__name__}: {str(e)}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Google API error: {str(e)}"
         )
     except Exception as e:
-        print(f"❌ Unexpected OAuth error: {type(e).__name__}: {str(e)}")
+        print(f"Unexpected OAuth error: {type(e).__name__}: {str(e)}")
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
