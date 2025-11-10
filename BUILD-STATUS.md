@@ -1,6 +1,8 @@
 # 🚀 AutoStack - Full Vercel Clone - Build Status
 
-## 📊 PROGRESS: Phase 1 - Day 1 COMPLETE!
+## 📊 PROGRESS: Phase 1 - Day 2 IN PROGRESS! (60% Complete)
+
+**Last Updated:** Nov 10, 2025 @ 6:50pm IST
 
 ---
 
@@ -44,7 +46,42 @@
   - Enhanced User model (projects, teams)
   - Enhanced Deploy model (project tracking)
 
-### **3. Previous Work (Already Done)**
+### **3. Backend API & CRUD Operations** ⭐ NEW!
+- ✅ **schemas_projects.py** - Pydantic validation schemas
+  - ProjectCreate, ProjectUpdate, ProjectResponse
+  - EnvVarCreate, EnvVarUpdate, EnvVarResponse
+  - DomainCreate, DomainResponse, DomainVerifyRequest
+  - TeamCreate, TeamInviteRequest, TeamResponse
+  - All with comprehensive validation rules
+
+- ✅ **crud_projects.py** - Database CRUD operations
+  - Project CRUD (create, read, update, delete, archive)
+  - Environment Variables CRUD (with encryption support)
+  - Domains CRUD (add, verify, delete)
+  - Teams CRUD (create, invite, remove members)
+  - Slug generation & uniqueness checks
+  - Permission validation
+
+- ✅ **routers/projects.py** - REST API endpoints (15+ endpoints!)
+  - `POST /api/projects` - Create project
+  - `GET /api/projects` - List user's projects (with pagination)
+  - `GET /api/projects/{id}` - Get project details
+  - `PUT /api/projects/{id}` - Update project
+  - `DELETE /api/projects/{id}` - Delete project
+  - `POST /api/projects/{id}/archive` - Archive project
+  - `POST /api/projects/{id}/env-vars` - Add environment variable
+  - `GET /api/projects/{id}/env-vars` - List env vars
+  - `PUT /api/projects/{id}/env-vars/{var_id}` - Update env var
+  - `DELETE /api/projects/{id}/env-vars/{var_id}` - Delete env var
+  - `POST /api/projects/{id}/domains` - Add custom domain
+  - `GET /api/projects/{id}/domains` - List domains
+  - `POST /api/projects/{id}/domains/{domain_id}/verify` - Verify domain
+  - `DELETE /api/projects/{id}/domains/{domain_id}` - Delete domain
+  - `POST /api/projects/{id}/deployments` - Deploy project
+
+- ✅ **Registered Router** in main.py (`/api/projects`)
+
+### **4. Previous Work (Already Done)**
 - ✅ AWS EKS cluster deployed
 - ✅ PostgreSQL database running
 - ✅ Authentication (email, GitHub, Google OAuth)
