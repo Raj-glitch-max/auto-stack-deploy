@@ -565,3 +565,147 @@ class CloudCredential(Base):
 
     def __repr__(self):
         return f"<CloudCredential {self.cloud_provider} - {self.credential_name}>"
+
+
+# ===== PIPELINE MODELS (UNIQUE FEATURE #2) =====
+
+class Pipeline(Base):
+    """Visual pipeline definitions"""
+    __tablename__ = "pipelines"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
+    # Pipeline metadata
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # Pipeline definition (visual structure)
+    definition = Column(JSON, nullable=False)  # Nodes and edges
+    version = Column(Integer, nullable=False, default=1)
+    
+    # Trigger configuration
+    trigger_type = Column(String(50), nullable=False, default='manual')
+    trigger_config = Column(JSON, nullable=True)
+    
+    # Status
+    is_active = Column(Boolean, nullable=False, default=True)
+    is_template = Column(Boolean, nullable=False, default=False)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_run_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    project = relationship("Project")
+    user = relationship("User")
+    runs = relationship("PipelineRun", back_populates="pipeline", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Pipeline {self.name}>"
+
+
+class PipelineRun(Base):
+    """Pipeline execution history"""
+    __tablename__ = "pipeline_runs"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    pipeline_id = Column(String, ForeignKey("pipelines.id", ondelete="CASCADE"), nullable=False)
+    project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
+    # Run metadata
+    run_number = Column(Integer, nullable=False)
+    status = Column(String(50), nullable=False, default='queued')
+    trigger_type = Column(String(50), nullable=False)
+    triggered_by = Column(String(255), nullable=True)
+    
+    # Execution details
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    duration_seconds = Column(Integer, nullable=True)
+    
+    # Results
+    logs = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+    artifacts = Column(JSON, nullable=True)
+    
+    # Cost tracking
+    estimated_cost = Column(Float, nullable=True)
+    actual_cost = Column(Float, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    pipeline = relationship("Pipeline", back_populates="runs")
+    project = relationship("Project")
+    user = relationship("User")
+    steps = relationship("PipelineStep", back_populates="run", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<PipelineRun #{self.run_number} - {self.status}>"
+
+
+class PipelineStep(Base):
+    """Individual pipeline step execution"""
+    __tablename__ = "pipeline_steps"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    pipeline_run_id = Column(String, ForeignKey("pipeline_runs.id", ondelete="CASCADE"), nullable=False)
+    
+    # Step details
+    step_name = Column(String(255), nullable=False)
+    step_type = Column(String(100), nullable=False)
+    step_order = Column(Integer, nullable=False)
+    
+    # Execution
+    status = Column(String(50), nullable=False, default='pending')
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    duration_seconds = Column(Integer, nullable=True)
+    
+    # Results
+    logs = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+    output = Column(JSON, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    run = relationship("PipelineRun", back_populates="steps")
+
+    def __repr__(self):
+        return f"<PipelineStep {self.step_name} - {self.status}>"
+
+
+class PipelineTemplate(Base):
+    """Reusable pipeline templates"""
+    __tablename__ = "pipeline_templates"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String(100), nullable=False)
+    
+    # Template definition
+    definition = Column(JSON, nullable=False)
+    icon = Column(String(100), nullable=True)
+    tags = Column(JSON, nullable=True)
+    
+    # Popularity
+    usage_count = Column(Integer, nullable=False, default=0)
+    rating = Column(Float, nullable=True)
+    
+    # Metadata
+    is_official = Column(Boolean, nullable=False, default=False)
+    created_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    creator = relationship("User")
+
+    def __repr__(self):
+        return f"<PipelineTemplate {self.name}>"
