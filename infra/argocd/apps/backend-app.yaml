@@ -42,7 +42,7 @@ spec:
         
         env:
           - name: DATABASE_URL
-            value: "postgresql://autostack:autostack_password@postgres:5432/autostack"
+            value: "postgresql+asyncpg://autostack:autostack_password@postgres:5432/autostack"
           - name: ENVIRONMENT
             value: "production"
           - name: PORT
