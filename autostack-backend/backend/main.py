@@ -123,6 +123,10 @@ app.include_router(costs_router, prefix="/api")
 from .routers.pipelines import router as pipelines_router
 app.include_router(pipelines_router, prefix="/api")
 
+# Mount Templates router (UNIQUE FEATURE #4!)
+from .routers.templates import router as templates_router
+app.include_router(templates_router, prefix="/api")
+
 # Initialize Deploy Engines
 deploy_engine = DeployEngine()  # Legacy local Docker deployment
 k8s_deploy_engine = K8sDeployEngine()  # New Kubernetes deployment for production
